@@ -68,11 +68,17 @@ export default async function SettingsPage() {
 
       <section className="mb-10">
         <h2 className="mb-3 text-lg font-semibold">Slack</h2>
-        <p className="text-sm text-ink-soft">
+        <p className="mb-3 text-sm text-ink-soft">
           {user.slackTeamId
             ? "Connected — Listero DMs you about new purchases."
             : "Not connected yet."}
         </p>
+        <a
+          href="/api/slack/install"
+          className="inline-block rounded-lg border border-ink/20 px-4 py-2 text-sm font-semibold transition hover:border-ink/50"
+        >
+          {user.slackTeamId ? "Reinstall Slack app" : "Add Listero to Slack"}
+        </a>
       </section>
 
       <section>
