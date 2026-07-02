@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db, bankConnections } from "@/db";
 import { getOrCreateUser } from "@/lib/user";
+import { ConnectBankButton } from "@/components/ConnectBankButton";
 
 export const dynamic = "force-dynamic";
 
@@ -44,9 +45,9 @@ export default async function SettingsPage() {
       <section className="mb-10">
         <h2 className="mb-3 text-lg font-semibold">Bank connections</h2>
         {connections.length === 0 ? (
-          <p className="text-sm text-ink-soft">No bank connected yet.</p>
+          <p className="mb-3 text-sm text-ink-soft">No bank connected yet.</p>
         ) : (
-          <ul className="space-y-2">
+          <ul className="mb-3 space-y-2">
             {connections.map((c) => (
               <li
                 key={c.id}
@@ -64,6 +65,15 @@ export default async function SettingsPage() {
             ))}
           </ul>
         )}
+        <ConnectBankButton
+          label={
+            connections.length === 0 ? "Connect a bank" : "Connect another bank"
+          }
+        />
+        <p className="mt-2 text-xs text-ink-soft">
+          Connect every institution you spend from — checking, credit cards,
+          business accounts. Listero watches them all.
+        </p>
       </section>
 
       <section className="mb-10">

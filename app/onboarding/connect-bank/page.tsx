@@ -71,13 +71,30 @@ export default function ConnectBankPage() {
             linked, {result.transactionCount} recent transaction
             {result.transactionCount === 1 ? "" : "s"} imported.
           </p>
-          <button
-            type="button"
-            onClick={() => router.push("/onboarding/slack")}
-            className="rounded-lg bg-coral px-6 py-3 font-semibold text-white transition hover:bg-coral-dark"
-          >
-            Continue → Install Listero in Slack
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => router.push("/onboarding/slack")}
+              className="rounded-lg bg-coral px-6 py-3 font-semibold text-white transition hover:bg-coral-dark"
+            >
+              Continue → Install Listero in Slack
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setResult(null);
+                setLinkToken(null);
+                createLinkToken.mutate();
+              }}
+              className="rounded-lg border border-coral px-6 py-3 font-semibold text-coral transition hover:bg-coral/10"
+            >
+              + Connect another bank
+            </button>
+          </div>
+          <p className="mt-3 text-xs text-green-900/70">
+            Got a credit card or a second account elsewhere? Connect every
+            institution you spend from so nothing slips through.
+          </p>
         </div>
       ) : exchange.isPending ? (
         <ListeroLoader messages={LINKING_MESSAGES} />
