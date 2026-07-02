@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
-import { db, bankConnections } from "@/db";
+import { db, bankConnections, users } from "@/db";
 import { getBankProvider } from "@/lib/bank-provider";
 import { markConnectionLost, syncConnection } from "@/lib/bank-provider/sync";
 import { onNewTransactions } from "@/lib/pipeline";
+import { slackClientFor } from "@/lib/slack/messages";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -39,7 +40,32 @@ export async function POST(req: Request) {
   }
 
   if (event.kind === "connection-lost") {
+    const alreadyLost = conn.status !== "active";
     await markConnectionLost(conn.id);
+    // Tell the user their bank needs reconnecting (once, via Slack DM)
+    if (!alreadyLost && conn.userId) {
+      const owner = await db.query.users.findFirst({
+        where: eq(users.id, conn.userId),
+      });
+      const client = owner ? slackClientFor(owner) : null;
+      if (client && owner?.slackUserId) {
+        try {
+          const dm = await client.conversations.open({
+            users: owner.slackUserId,
+          });
+          if (dm.channel?.id) {
+            await client.chat.postMessage({
+              channel: dm.channel.id,
+              text: `⚠️ Listero lost the connection to ${conn.institutionName ?? "your bank"}. New purchases won't come through until you reconnect: ${process.env.NEXT_PUBLIC_APP_URL}/settings`,
+            });
+          }
+        } catch (err) {
+          console.warn("reconnect DM failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+    }
     return NextResponse.json({ ok: true });
   }
 

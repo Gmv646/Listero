@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "seed": "tsx scripts/seed-rules.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
