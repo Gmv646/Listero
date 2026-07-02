@@ -21,7 +21,10 @@ export function ConnectBankButton({ label }: { label: string }) {
   const exchange = trpc.plaidExchangePublicToken.useMutation({
     onSuccess: (d) => {
       setDone(
-        `Connected — ${d.accountCount} account${d.accountCount === 1 ? "" : "s"} added.`
+        `Connected — ${d.accountCount} account${d.accountCount === 1 ? "" : "s"} added.` +
+          (d.transactionCount === 0
+            ? " Transactions will appear within a few minutes."
+            : "")
       );
       router.refresh();
     },

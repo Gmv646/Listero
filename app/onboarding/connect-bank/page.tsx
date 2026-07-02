@@ -68,8 +68,10 @@ export default function ConnectBankPage() {
           <p className="mb-2 font-semibold text-green-900">Bank connected ✓</p>
           <p className="mb-6 text-sm text-green-900">
             {result.accountCount} account{result.accountCount === 1 ? "" : "s"}{" "}
-            linked, {result.transactionCount} recent transaction
-            {result.transactionCount === 1 ? "" : "s"} imported.
+            linked
+            {result.transactionCount > 0
+              ? `, ${result.transactionCount} recent transaction${result.transactionCount === 1 ? "" : "s"} imported.`
+              : ". Your recent transactions will appear within a few minutes."}
           </p>
           <div className="flex flex-wrap gap-3">
             <button

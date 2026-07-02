@@ -114,11 +114,21 @@ export const appRouter = router({
         );
       }
 
-      // Initial 30-day sync. Plaid may deliver history asynchronously via
-      // webhook too; the sync cursor makes this idempotent either way.
-      const { insertedTxIds } = await syncConnection(conn.id);
-      if (insertedTxIds.length > 0) {
-        await onNewTransactions(ctx.user.id, insertedTxIds);
+      // Initial 30-day sync. Plaid often isn't ready this soon after the
+      // exchange (PRODUCT_NOT_READY) — that's fine: it fires a webhook when
+      // history is prepared and the webhook route imports it. The connection
+      // itself is already saved, so never fail the mutation over this.
+      let insertedTxIds: string[] = [];
+      try {
+        ({ insertedTxIds } = await syncConnection(conn.id));
+        if (insertedTxIds.length > 0) {
+          await onNewTransactions(ctx.user.id, insertedTxIds);
+        }
+      } catch (err) {
+        console.warn("initial sync deferred to webhook", {
+          connectionId: conn.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
 
       return {
