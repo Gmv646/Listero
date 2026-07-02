@@ -4,6 +4,15 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePlaidLink } from "react-plaid-link";
 import { trpc } from "@/lib/trpc";
+import { ListeroLoader } from "@/components/ListeroLoader";
+
+const LINKING_MESSAGES = [
+  "Linking your accounts…",
+  "Shaking hands with your bank 🤝",
+  "Importing your last 30 days of purchases…",
+  "Encrypting your access token 🔐",
+  "Almost there — warming up the categorizer…",
+];
 
 export default function ConnectBankPage() {
   const router = useRouter();
@@ -70,19 +79,19 @@ export default function ConnectBankPage() {
             Continue → Install Listero in Slack
           </button>
         </div>
+      ) : exchange.isPending ? (
+        <ListeroLoader messages={LINKING_MESSAGES} />
       ) : (
         <>
           <button
             type="button"
-            disabled={!ready || !linkToken || exchange.isPending}
+            disabled={!ready || !linkToken}
             onClick={() => open()}
             className="w-full rounded-lg bg-coral px-6 py-3 font-semibold text-white transition hover:bg-coral-dark disabled:opacity-40"
           >
-            {exchange.isPending
-              ? "Linking your accounts…"
-              : linkToken
-                ? "Connect a bank account"
-                : "Preparing secure connection…"}
+            {linkToken
+              ? "Connect a bank account"
+              : "Preparing secure connection…"}
           </button>
           {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
         </>

@@ -6,3 +6,24 @@ body {
   color: #1c1917;
   background: #faf6ef;
 }
+
+/* Listero loading mascot: squash-and-stretch bounce with a happy wiggle */
+@keyframes listero-bounce {
+  0%, 100% { transform: translateY(0) rotate(-4deg) scale(1, 1); }
+  15% { transform: translateY(2px) rotate(-4deg) scale(1.08, 0.9); }
+  40% { transform: translateY(-14px) rotate(4deg) scale(0.94, 1.08); }
+  60% { transform: translateY(-14px) rotate(-2deg) scale(0.97, 1.03); }
+  85% { transform: translateY(2px) rotate(3deg) scale(1.06, 0.92); }
+}
+@keyframes listero-shadow {
+  0%, 100% { transform: scale(1); opacity: 0.25; }
+  40%, 60% { transform: scale(0.6); opacity: 0.12; }
+}
+@keyframes listero-sparkle {
+  0%, 100% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1); opacity: 1; }
+}
+.animate-listero-bounce { animation: listero-bounce 1.1s ease-in-out infinite; }
+.animate-listero-shadow { animation: listero-shadow 1.1s ease-in-out infinite; }
+.animate-listero-sparkle { animation: listero-sparkle 1.6s ease-in-out infinite; }
+.animate-listero-sparkle-late { animation: listero-sparkle 1.6s ease-in-out 0.8s infinite; }
