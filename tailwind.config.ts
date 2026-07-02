@@ -9,8 +9,13 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "var(--background)",
-        foreground: "var(--foreground)",
+        cream: "#FAF6EF",
+        "cream-dark": "#F1EADF",
+        ink: "#1C1917",
+        "ink-soft": "#57534E",
+        coral: "#E8604C",
+        "coral-dark": "#D14A36",
+        sage: "#8A9A7B",
       },
     },
   },
