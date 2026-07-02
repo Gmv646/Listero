@@ -31,7 +31,7 @@ export default function LandingPage() {
         </Link>
       </div>
       <p className="mt-16 text-xs text-ink-soft">
-        Closed beta. Bank connections are read-only via Teller. Your data is
+        Closed beta. Bank connections are read-only via Plaid. Your data is
         yours — export everything, anytime. Listero explains tax concepts for
         education; it is not tax advice.
       </p>
