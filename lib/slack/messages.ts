@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db, transactions, type Transaction, type User } from "@/db";
 import { decryptSecret } from "@/lib/crypto";
 import { SHORT_HINTS } from "@/lib/categories";
+import { txLocation } from "@/lib/enrich";
 
 export function slackClientFor(user: User): WebClient | null {
   if (!user.slackBotTokenEncrypted) return null;
@@ -28,12 +29,13 @@ export function buildTransactionBlocks(
   opts?: { confirmedSummary?: string }
 ): KnownBlock[] {
   const merchant = tx.merchantDisplay ?? tx.merchantRaw ?? "Unknown merchant";
+  const location = txLocation(tx);
   const blocks: KnownBlock[] = [
     {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `*${merchant}* — ${money(tx)} — ${when(tx)}`,
+        text: `*${merchant}* — ${money(tx)} — ${when(tx)}${location ? `\n📍 ${location}` : ""}`,
       },
     },
   ];

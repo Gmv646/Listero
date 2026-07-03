@@ -20,7 +20,8 @@
         "chat:write.public",
         "im:write",
         "users:read",
-        "commands"
+        "commands",
+        "im:history"
       ]
     }
   },
@@ -31,6 +32,12 @@
     },
     "org_deploy_enabled": false,
     "socket_mode_enabled": false,
-    "token_rotation_enabled": false
+    "token_rotation_enabled": false,
+    "event_subscriptions": {
+      "request_url": "https://app.getlistero.com/api/slack/events",
+      "bot_events": [
+        "message.im"
+      ]
+    }
   }
 }

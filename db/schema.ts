@@ -82,6 +82,9 @@ export const transactions = pgTable(
     status: text("status").default("pending"),
     confidence: numeric("confidence"),
     reasoning: text("reasoning"),
+    // free-text context from the user (e.g. via Slack reply): "gear for the
+    // Henderson wedding shoot"
+    userNote: text("user_note"),
     // true = pre-signup history the user chose not to actively manage
     archived: boolean("archived").default(false),
     slackMessageTs: text("slack_message_ts"),

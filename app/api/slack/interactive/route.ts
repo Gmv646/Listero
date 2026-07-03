@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   db,
   productFeedback,
+  rules,
   transactions,
   users,
   type Transaction,
   type User,
 } from "@/db";
+import { track } from "@/lib/analytics";
 import { verifySlackSignature } from "@/lib/slack/verify";
 import { applyUserConfirmation } from "@/lib/confirm";
 import { slackClientFor } from "@/lib/slack/messages";
@@ -103,6 +105,15 @@ async function confirmTransaction(
 
 async function handleBlockActions(payload: BlockActionsPayload) {
   const action = payload.actions?.[0];
+
+  // Rule offers carry a JSON value (merchant/category), not a transaction id
+  if (
+    action?.action_id === "rule_accept" ||
+    action?.action_id === "rule_decline"
+  ) {
+    return handleRuleOffer(payload, action);
+  }
+
   const loaded = await loadAuthorized(action?.value, payload);
   if (!loaded) return NextResponse.json({});
   const { tx, owner } = loaded;
@@ -229,6 +240,70 @@ async function handleBlockActions(payload: BlockActionsPayload) {
     }
   }
 
+  return NextResponse.json({});
+}
+
+async function handleRuleOffer(
+  payload: BlockActionsPayload,
+  action: { action_id: string; value?: string }
+) {
+  const owner = await db.query.users.findFirst({
+    where: and(
+      eq(users.slackTeamId, payload.team?.id ?? ""),
+      eq(users.slackUserId, payload.user?.id ?? "")
+    ),
+  });
+  if (!owner || !action.value) return NextResponse.json({});
+
+  let offer: { m: string; c: string; b: string };
+  try {
+    offer = JSON.parse(action.value);
+  } catch {
+    return NextResponse.json({});
+  }
+
+  const accepted = action.action_id === "rule_accept";
+  if (accepted) {
+    await db.insert(rules).values({
+      userId: owner.id,
+      layer: "personal",
+      merchantPattern: offer.m,
+      category: offer.c,
+      businessPersonal: offer.b,
+      confidence: "0.95",
+    });
+  }
+  await track({
+    userId: owner.id,
+    eventType: "user_action_taken",
+    action: accepted ? "rule_offer_accepted" : "rule_offer_declined",
+    metadata: { merchant: offer.m, category: offer.c },
+  });
+
+  // Rewrite the offer message with the outcome
+  const client = slackClientFor(owner);
+  const container = (
+    payload as unknown as {
+      container?: { channel_id?: string; message_ts?: string };
+    }
+  ).container;
+  if (client && container?.channel_id && container.message_ts) {
+    const text = accepted
+      ? `✅ Got it — I'll auto-handle *${offer.m}* as *${offer.b === "personal" ? "Personal" : `Business · ${offer.c}`}* from now on. You'll still see each one; change it anytime by tapping its buttons.`
+      : `👍 No problem — I'll keep asking about *${offer.m}*.`;
+    try {
+      await client.chat.update({
+        channel: container.channel_id,
+        ts: container.message_ts,
+        text,
+        blocks: [
+          { type: "section", text: { type: "mrkdwn", text } },
+        ],
+      });
+    } catch {
+      /* best effort */
+    }
+  }
   return NextResponse.json({});
 }
 

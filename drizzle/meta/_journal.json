@@ -50,6 +50,13 @@
       "when": 1783087581496,
       "tag": "0006_csv-history-fields",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1783090395808,
+      "tag": "0007_user-note",
+      "breakpoints": true
     }
   ]
 }

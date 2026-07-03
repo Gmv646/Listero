@@ -67,6 +67,11 @@ export async function applyUserConfirmation(
     { ...tx, category: choice.category, businessPersonal: choice.businessPersonal },
     `✅ Confirmed as *${label}*`
   );
+
+  // "Listero learned something" — offer one-tap auto-handling after
+  // consistent confirmations (best-effort, lazy import avoids cycles)
+  const { maybeOfferRule } = await import("@/lib/learning");
+  await maybeOfferRule(owner, tx, choice);
 }
 
 export function confirmationLabel(choice: {

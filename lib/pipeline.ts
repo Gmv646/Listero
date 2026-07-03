@@ -18,6 +18,7 @@ import {
 } from "@/lib/categorization/transfers";
 import { sendTransactionMessage } from "@/lib/slack/messages";
 import { track } from "@/lib/analytics";
+import { txEnrichmentForPrompt } from "@/lib/enrich";
 
 export interface PipelineOptions {
   // false when backfilling/reprocessing: no Slack DMs
@@ -73,13 +74,14 @@ async function processTransaction(
         where: eq(bankAccounts.id, tx.accountId),
       })
     : null;
+  const enrichment = txEnrichmentForPrompt(tx);
   const accountContext = account
     ? `${account.accountName ?? "account"}${
         account.businessTreatment && account.businessTreatment !== "mixed"
           ? ` — the user says this is a dedicated ${account.businessTreatment} ${account.accountType === "card" || account.accountSubtype === "credit card" ? "card" : "account"}`
           : ""
-      }`
-    : undefined;
+      }${enrichment ? `\n${enrichment}` : ""}`
+    : enrichment || undefined;
 
   // 1. Cross-account pair
   const pair = await findTransferPair(tx);

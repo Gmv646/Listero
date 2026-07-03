@@ -15,6 +15,7 @@ type QueueItem = {
   category: string | null;
   reasoning: string | null;
   accountLabel: string | null;
+  location: string | null;
 };
 
 // One transaction at a time. Confirming advances automatically;
@@ -124,6 +125,7 @@ export default function ReviewPage() {
             <p className="mt-1 text-sm text-ink-soft">
               {current.accountLabel ? `${current.accountLabel} · ` : ""}
               {current.date}
+              {current.location ? ` · 📍 ${current.location}` : ""}
             </p>
           </div>
           <p

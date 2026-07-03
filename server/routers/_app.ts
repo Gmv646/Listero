@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { db, transactions, bankConnections, bankAccounts, users } from "@/db";
 import { cleanMerchant } from "@/lib/display";
 import { parseCsvStatement } from "@/lib/bank-provider/CsvProvider";
+import { txLocation } from "@/lib/enrich";
 import { encryptSecret } from "@/lib/crypto";
 import { getBankProvider } from "@/lib/bank-provider";
 import { syncConnection } from "@/lib/bank-provider/sync";
@@ -347,6 +348,7 @@ export const appRouter = router({
         businessPersonal: t.businessPersonal,
         reasoning: t.reasoning,
         accountLabel: labelFor(t.accountId),
+        location: txLocation(t),
       }));
   }),
 
