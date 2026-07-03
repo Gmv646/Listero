@@ -8,8 +8,8 @@ Full details live in the founder's planning doc; this file tracks status.
 - [x] P1: incoming credits always classified (transfer → refund → revenue proposal)
 - [x] P5: product_analytics telemetry + /admin/metrics
 - [ ] P2a: Clerk production instance + user-deleted webhook
-- [ ] P2b: onboarding edge cases (no-Slack web review fallback, resume, empty states)
-- [ ] P2c: documented multi-tenant isolation audit
+- [x] P2b: onboarding edge cases (no-Slack web review fallback, resume, empty states)
+- [x] P2c: documented multi-tenant isolation audit (npm run audit:isolation — 8 checks, passing)
 - [ ] P3: dashboard redesign (stat cards, per-account cards, streaks, rows, filters)
 - [ ] P4: tax-saved estimate with disclaimer + user-set rate
 
