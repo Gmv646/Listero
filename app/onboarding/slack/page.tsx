@@ -1,3 +1,5 @@
+import { SkipSlackButton } from "@/components/SkipSlackButton";
+
 export default function SlackOnboardingPage({
   searchParams,
 }: {
@@ -21,12 +23,20 @@ export default function SlackOnboardingPage({
         </p>
       )}
 
-      <a
-        href="/api/slack/install"
-        className="inline-block rounded-lg bg-coral px-6 py-3 font-semibold text-white transition hover:bg-coral-dark"
-      >
-        Add Listero to Slack
-      </a>
+      <div className="flex flex-col items-start gap-5">
+        <a
+          href="/api/slack/install"
+          className="inline-block rounded-lg bg-coral px-6 py-3 font-semibold text-white transition hover:bg-coral-dark"
+        >
+          Add Listero to Slack
+        </a>
+        <SkipSlackButton />
+      </div>
+      <p className="mt-4 text-xs text-ink-soft">
+        Without Slack, new purchases still get categorized — you confirm them
+        on your dashboard instead of via DM. You can connect Slack anytime
+        from Settings.
+      </p>
     </main>
   );
 }

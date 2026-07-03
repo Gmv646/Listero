@@ -7,6 +7,8 @@ import { getBankProvider } from "@/lib/bank-provider";
 import { syncConnection } from "@/lib/bank-provider/sync";
 import { onNewTransactions } from "@/lib/pipeline";
 import { router, protectedProcedure } from "../trpc";
+import { applyUserConfirmation } from "@/lib/confirm";
+import { eq as eqOp, and } from "drizzle-orm";
 
 export const appRouter = router({
   me: protectedProcedure.query(({ ctx }) => {
@@ -137,6 +139,52 @@ export const appRouter = router({
         transactionCount: insertedTxIds.length,
       };
     }),
+
+  // Web review flow — Slack-optional confirmation, same shared logic
+  confirmTransaction: protectedProcedure
+    .input(
+      z.object({
+        transactionId: z.string().uuid(),
+        businessPersonal: z.enum(["business", "personal", "internal"]),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const tx = await db.query.transactions.findFirst({
+        where: and(
+          eqOp(transactions.id, input.transactionId),
+          eqOp(transactions.userId, ctx.user.id)
+        ),
+      });
+      if (!tx) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const choice =
+        input.businessPersonal === "personal"
+          ? { category: "Personal", businessPersonal: "personal" }
+          : input.businessPersonal === "internal"
+            ? { category: "Internal transfer", businessPersonal: "internal" }
+            : {
+                category: tx.category ?? "Other",
+                businessPersonal: "business",
+              };
+
+      await applyUserConfirmation(
+        tx,
+        ctx.user,
+        choice,
+        "web",
+        `web_confirm_${input.businessPersonal}`
+      );
+      return { ok: true };
+    }),
+
+  // Finish onboarding without Slack — web review works as the fallback
+  skipSlack: protectedProcedure.mutation(async ({ ctx }) => {
+    await db
+      .update(users)
+      .set({ onboardingComplete: true })
+      .where(eqOp(users.id, ctx.user.id));
+    return { ok: true };
+  }),
 
   bankConnectionsList: protectedProcedure.query(async ({ ctx }) => {
     const rows = await db.query.bankConnections.findMany({

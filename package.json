@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed": "tsx scripts/seed-rules.ts"
+    "seed": "tsx scripts/seed-rules.ts",
+    "audit:isolation": "tsx scripts/isolation-audit.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",

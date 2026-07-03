@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import {
   db,
-  auditLog,
   productFeedback,
   transactions,
   users,
@@ -10,11 +9,8 @@ import {
   type User,
 } from "@/db";
 import { verifySlackSignature } from "@/lib/slack/verify";
-import { track } from "@/lib/analytics";
-import {
-  slackClientFor,
-  updateTransactionMessage,
-} from "@/lib/slack/messages";
+import { applyUserConfirmation } from "@/lib/confirm";
+import { slackClientFor } from "@/lib/slack/messages";
 import { CATEGORIES, DISCLAIMER, TAX_EXPLANATIONS } from "@/lib/categories";
 
 export const dynamic = "force-dynamic";
@@ -102,61 +98,7 @@ async function confirmTransaction(
   choice: { category: string | null; businessPersonal: string },
   actionId: string
 ): Promise<void> {
-  const before = {
-    category: tx.category,
-    businessPersonal: tx.businessPersonal,
-    status: tx.status,
-  };
-  const after = {
-    category: choice.category,
-    businessPersonal: choice.businessPersonal,
-    status: "confirmed",
-  };
-
-  await db
-    .update(transactions)
-    .set({
-      category: choice.category,
-      businessPersonal: choice.businessPersonal,
-      status: "confirmed",
-      confirmedAt: new Date(),
-    })
-    .where(eq(transactions.id, tx.id));
-
-  const overrode =
-    tx.category !== choice.category ||
-    tx.businessPersonal !== choice.businessPersonal;
-
-  // Overrides are logged distinctly — this delta feeds confidence calibration
-  await db.insert(auditLog).values({
-    userId: owner.id,
-    transactionId: tx.id,
-    action: overrode ? "user_override" : "user_confirm",
-    before,
-    after,
-    source: "slack",
-  });
-
-  await track({
-    userId: owner.id,
-    transactionId: tx.id,
-    eventType: "user_action_taken",
-    action: actionId,
-    matchedProposal: !overrode,
-    metadata: { fromCategory: tx.category, toCategory: choice.category },
-  });
-
-  const label =
-    choice.businessPersonal === "internal"
-      ? "Internal transfer · nets to zero"
-      : choice.businessPersonal === "personal"
-        ? "Personal"
-        : `Business · ${choice.category ?? "Uncategorized"}`;
-  await updateTransactionMessage(
-    owner,
-    { ...tx, ...{ category: choice.category, businessPersonal: choice.businessPersonal } },
-    `✅ Confirmed as *${label}*`
-  );
+  await applyUserConfirmation(tx, owner, choice, "slack", actionId);
 }
 
 async function handleBlockActions(payload: BlockActionsPayload) {
