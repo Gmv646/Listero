@@ -1,7 +1,8 @@
 import { z } from "zod";
-import { desc, eq } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db, transactions, bankConnections, bankAccounts, users } from "@/db";
+import { cleanMerchant } from "@/lib/display";
 import { encryptSecret } from "@/lib/crypto";
 import { getBankProvider } from "@/lib/bank-provider";
 import { syncConnection } from "@/lib/bank-provider/sync";
@@ -139,6 +140,53 @@ export const appRouter = router({
         transactionCount: insertedTxIds.length,
       };
     }),
+
+  // One-at-a-time review queue: everything awaiting the user's eyes,
+  // oldest first, with display-ready merchant + account labels.
+  reviewQueue: protectedProcedure.query(async ({ ctx }) => {
+    const [txs, accounts, connections] = await Promise.all([
+      db.query.transactions.findMany({
+        // Only 'pending' needs human eyes — 'auto' (rule/transfer-handled)
+        // is deliberately kept out of the review flow per product design.
+        where: and(
+          eqOp(transactions.userId, ctx.user.id),
+          eqOp(transactions.status, "pending")
+        ),
+        orderBy: [asc(transactions.date), asc(transactions.createdAt)],
+        limit: 100,
+      }),
+      db.query.bankAccounts.findMany({
+        where: eqOp(bankAccounts.userId, ctx.user.id),
+      }),
+      db.query.bankConnections.findMany({
+        where: eqOp(bankConnections.userId, ctx.user.id),
+      }),
+    ]);
+
+    const connById = new Map(connections.map((c) => [c.id, c]));
+    const labelFor = (accountId: string | null) => {
+      const a = accounts.find((x) => x.id === accountId);
+      if (!a) return null;
+      const inst =
+        (a.connectionId && connById.get(a.connectionId)?.institutionName) ||
+        "Bank";
+      return a.lastFour ? `${inst} ··${a.lastFour}` : inst;
+    };
+
+    return txs
+      .filter((t) => t.businessPersonal !== "internal")
+      .map((t) => ({
+        id: t.id,
+        date: t.date,
+        merchant: cleanMerchant(t),
+        amount: t.amount,
+        direction: t.direction,
+        category: t.category,
+        businessPersonal: t.businessPersonal,
+        reasoning: t.reasoning,
+        accountLabel: labelFor(t.accountId),
+      }));
+  }),
 
   // Web review flow — Slack-optional confirmation, same shared logic
   confirmTransaction: protectedProcedure

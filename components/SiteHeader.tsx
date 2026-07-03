@@ -27,6 +27,12 @@ export function SiteHeader() {
           <Link href="/dashboard" className="transition hover:text-coral">
             Dashboard
           </Link>
+          <Link
+            href="/dashboard/history"
+            className="transition hover:text-coral"
+          >
+            History
+          </Link>
           <Link href="/settings" className="transition hover:text-coral">
             Settings
           </Link>

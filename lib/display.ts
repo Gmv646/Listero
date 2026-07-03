@@ -34,20 +34,88 @@ export function categoryIcon(tx: Transaction): string {
   return tx.direction === "inflow" ? "↙️" : "🧾";
 }
 
-// Bank descriptors are often SHOUTING with trailing processor noise.
-// "SQ *JOES COFFEE AUSTIN PPD ID: 12345" → "Sq *Joes Coffee Austin"
-export function cleanMerchant(tx: Transaction): string {
-  let s = (tx.merchantDisplay ?? tx.merchantRaw ?? "Unknown merchant").trim();
-  s = s
-    .replace(/\s+(PPD|WEB|CCD)\s+ID:\s*\S+.*$/i, "")
-    .replace(/\s+ORIG CO NAME:.*$/i, "")
-    .replace(/\s{2,}/g, " ");
+// Well-known payment processors/institutions → friendly short names
+const COMPANY_ALIASES: Record<string, string> = {
+  americanexpress: "Amex",
+  "american express": "Amex",
+  amex: "Amex",
+  chase: "Chase",
+  "capital one": "Capital One",
+  capitalone: "Capital One",
+  citi: "Citi",
+  citibank: "Citi",
+  discover: "Discover",
+  "bank of america": "Bank of America",
+  bankofamerica: "Bank of America",
+  wellsfargo: "Wells Fargo",
+  "wells fargo": "Wells Fargo",
+  barclays: "Barclays",
+  synchrony: "Synchrony",
+  usbank: "US Bank",
+  "us bank": "US Bank",
+};
+
+function titleCase(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/(^|[\s\-/&.*])([a-z])/g, (m, sep, ch) => sep + ch.toUpperCase());
+}
+
+function aliasFor(name: string): string {
+  const key = name.trim().toLowerCase().replace(/\s+co$/, "").trim();
+  return COMPANY_ALIASES[key] ?? titleCase(key);
+}
+
+type MerchantFields = Pick<Transaction, "merchantDisplay" | "merchantRaw">;
+
+// Bank descriptors are often SHOUTING, wrapped in ACH metadata, or both.
+// "ORIG CO NAME:AMERICANEXPRESS CO ENTRY DESCR:..." → "Amex payment"
+// "PAYMENT TO CHASE CARD ENDING IN 4972 07/02"     → "Chase card payment"
+// "SQ *JOES COFFEE AUSTIN PPD ID: 12345"           → "Sq *Joes Coffee Austin"
+export function cleanMerchant(tx: MerchantFields): string {
+  const raw = (tx.merchantDisplay ?? tx.merchantRaw ?? "").trim();
+  if (!raw) return "Unknown merchant";
+
+  // ACH originator wrapper: extract the company name, call it a payment
+  const ach = raw.match(
+    /ORIG CO NAME:\s*([A-Za-z0-9 &.']+?)(?:\s+(?:CO\s+)?(?:ENTRY|ORIG|DESCR|ID)\b|$)/i
+  );
+  if (ach) return `${aliasFor(ach[1])} payment`;
+
+  // "PAYMENT TO <BANK> CARD ..." → "<Bank> card payment"
+  const cardPmt = raw.match(/PAYMENT TO\s+([A-Za-z ]+?)\s+CARD\b/i);
+  if (cardPmt) return `${aliasFor(cardPmt[1])} card payment`;
+
+  // "<BANK> CREDIT CRD AUTOPAY ..." → "<Bank> card payment"
+  const autopay = raw.match(/^([A-Za-z ]+?)\s+CREDIT\s+CRD\s+AUTOPAY/i);
+  if (autopay) return `${aliasFor(autopay[1])} card payment`;
+
+  // "<KNOWN BANK> TRANSFER/PAYMENT 000123…" → "<Bank> transfer/payment"
+  // Only for known institutions, so real merchants aren't mangled.
+  const instMove = raw.match(/^([A-Za-z .&]+?)\s+(TRANSFER|PAYMENT|PMT)\b/i);
+  if (instMove && COMPANY_ALIASES[instMove[1].trim().toLowerCase()]) {
+    const verb = instMove[2].toLowerCase() === "transfer" ? "transfer" : "payment";
+    return `${aliasFor(instMove[1])} ${verb}`;
+  }
+
+  // Generic trailing bank noise
+  let s = raw
+    .replace(/\s+(PPD|WEB|CCD|TEL)\s+ID:\s*\S+.*$/i, "")
+    .replace(/\s+ENTRY DESCR:.*$/i, "")
+    .replace(/\s+SEC:\s*\S+.*$/i, "")
+    .replace(/\s+TRACE\s*#?:?\s*\S+.*$/i, "")
+    .replace(/\s+IND\s+ID:.*$/i, "")
+    .replace(/\s+CO\s+ID:.*$/i, "")
+    .replace(/\s+\d{2}\/\d{2}(\/\d{2,4})?$/, "")
+    .replace(/\s+\d{6,}\s*$/, "") // long trailing reference numbers
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  // De-SHOUT mostly-uppercase strings
   const letters = s.replace(/[^a-zA-Z]/g, "");
   const upper = letters.replace(/[^A-Z]/g, "");
   if (letters.length > 3 && upper.length / letters.length > 0.8) {
-    s = s
-      .toLowerCase()
-      .replace(/(^|[\s\-/&.])([a-z])/g, (m, sep, ch) => sep + ch.toUpperCase());
+    s = titleCase(s);
   }
   return s.length > 48 ? s.slice(0, 45).trimEnd() + "…" : s;
 }
