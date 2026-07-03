@@ -1,19 +1,23 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { desc, eq } from "drizzle-orm";
-import { db, bankConnections, transactions } from "@/db";
+import { db, bankAccounts, bankConnections, transactions } from "@/db";
 import { getOrCreateUser } from "@/lib/user";
 import { ReviewButtons } from "@/components/ReviewButtons";
+import {
+  categoryIcon,
+  cleanMerchant,
+  statusLabel,
+  TONE_CLASSES,
+} from "@/lib/display";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_STYLES: Record<string, string> = {
-  pending: "bg-amber-100 text-amber-800",
-  auto: "bg-blue-100 text-blue-800",
-  confirmed: "bg-green-100 text-green-800",
-};
-
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: { filter?: string };
+}) {
   const user = await getOrCreateUser();
   if (!user) redirect("/login");
 
@@ -30,17 +34,40 @@ export default async function DashboardPage() {
     redirect("/onboarding/slack");
   }
 
-  const txns = await db.query.transactions.findMany({
-    where: eq(transactions.userId, user.id),
-    orderBy: [desc(transactions.date), desc(transactions.createdAt)],
-    limit: 100,
-  });
+  const [txns, accounts] = await Promise.all([
+    db.query.transactions.findMany({
+      where: eq(transactions.userId, user.id),
+      orderBy: [desc(transactions.date), desc(transactions.createdAt)],
+      limit: 200,
+    }),
+    db.query.bankAccounts.findMany({
+      where: eq(bankAccounts.userId, user.id),
+    }),
+  ]);
+
+  // account id → "Chase ··4972"
+  const connById = new Map(connections.map((c) => [c.id, c]));
+  const accountLabel = new Map(
+    accounts.map((a) => {
+      const inst =
+        (a.connectionId && connById.get(a.connectionId)?.institutionName) ||
+        "Bank";
+      return [a.id, a.lastFour ? `${inst} ··${a.lastFour}` : inst];
+    })
+  );
+
+  const reviewFilter = searchParams.filter === "review";
+  const needsReview = (s: string | null) => s === "pending" || s === "auto";
+  const pendingCount = txns.filter((t) => needsReview(t.status)).length;
+  const visible = reviewFilter
+    ? txns.filter((t) => needsReview(t.status))
+    : txns;
 
   const slackConnected = Boolean(user.slackTeamId);
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-10">
-      <header className="mb-8">
+    <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-10">
+      <header className="mb-6">
         <h1 className="text-2xl font-bold">
           {user.businessName ?? "Your business"}
         </h1>
@@ -48,7 +75,7 @@ export default async function DashboardPage() {
       </header>
 
       {!slackConnected && (
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-coral/40 bg-coral/5 px-4 py-3 text-sm">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-coral/40 bg-coral/5 px-4 py-3 text-sm">
           <span>
             💬 Connect Slack to get pinged the moment you spend — until then,
             confirm transactions right here.
@@ -62,94 +89,148 @@ export default async function DashboardPage() {
         </div>
       )}
 
+      {/* Filter pills */}
+      <div className="mb-4 flex items-center gap-2">
+        <Link
+          href="/dashboard"
+          className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+            !reviewFilter
+              ? "bg-ink text-cream"
+              : "border border-ink/20 text-ink-soft hover:border-ink/50"
+          }`}
+        >
+          All
+        </Link>
+        <Link
+          href="/dashboard?filter=review"
+          className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+            reviewFilter
+              ? "bg-ink text-cream"
+              : "border border-ink/20 text-ink-soft hover:border-ink/50"
+          }`}
+        >
+          Needs review
+          {pendingCount > 0 && (
+            <span
+              className={`rounded-full px-1.5 text-xs font-bold ${
+                reviewFilter ? "bg-coral text-white" : "bg-coral/15 text-coral"
+              }`}
+            >
+              {pendingCount}
+            </span>
+          )}
+        </Link>
+      </div>
+
       {connections.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-ink/30 p-12 text-center">
-          <p className="mb-2 text-lg font-semibold">
-            Connect your first account to get started
-          </p>
-          <p className="mx-auto mb-6 max-w-md text-sm text-ink-soft">
-            Listero watches your business spending and proposes a category for
-            every purchase — you just confirm. Connect the accounts you spend
-            from and the last 30 days import automatically.
-          </p>
-          <Link
-            href="/settings"
-            className="inline-block rounded-lg bg-coral px-6 py-3 font-semibold text-white transition hover:bg-coral-dark"
-          >
-            Connect a bank account
-          </Link>
-        </div>
+        <EmptyState
+          emoji="🏦"
+          title="Connect your first account to get started"
+          body="Listero watches your business spending and proposes a category for every purchase — you just confirm. Connect the accounts you spend from and the last 30 days import automatically."
+          cta={{ href: "/settings", label: "Connect a bank account" }}
+        />
       ) : txns.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-ink/30 p-12 text-center">
-          <p className="mb-2 font-semibold">Bank connected — importing…</p>
-          <p className="text-sm text-ink-soft">
-            Your recent transactions usually appear within a few minutes.
-            Refresh this page shortly.
-          </p>
-        </div>
+        <EmptyState
+          emoji="⏳"
+          title="Bank connected — importing…"
+          body="Your recent transactions usually appear within a few minutes. Refresh this page shortly."
+        />
+      ) : visible.length === 0 ? (
+        <EmptyState
+          emoji="🎉"
+          title="All caught up"
+          body="Nothing needs your review right now. New purchases will show up here (and in Slack) as they happen."
+          cta={{ href: "/dashboard", label: "View all transactions" }}
+        />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-ink/10 bg-white">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-ink/10 text-left text-ink-soft">
-                <th className="px-4 py-3 font-medium">Date</th>
-                <th className="px-4 py-3 font-medium">Merchant</th>
-                <th className="px-4 py-3 font-medium">Amount</th>
-                <th className="px-4 py-3 font-medium">Category</th>
-                <th className="px-4 py-3 font-medium">B/P</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {txns.map((t) => {
-                const isInternal = t.businessPersonal === "internal";
-                const needsReview =
-                  t.status === "pending" || t.status === "auto";
-                return (
-                  <tr
-                    key={t.id}
-                    className={`border-b border-ink/5 last:border-0 ${
-                      isInternal ? "text-ink-soft/70" : ""
-                    }`}
-                  >
-                    <td className="px-4 py-3 whitespace-nowrap">{t.date}</td>
-                    <td className="px-4 py-3">
-                      {isInternal ? "🔁 " : ""}
-                      {t.merchantDisplay ?? t.merchantRaw ?? "—"}
-                    </td>
-                    <td
-                      className={`px-4 py-3 whitespace-nowrap ${
-                        !isInternal && t.direction === "inflow"
+        <div className="divide-y divide-ink/5 rounded-xl border border-ink/10 bg-white">
+          {visible.map((t) => {
+            const isInternal = t.businessPersonal === "internal";
+            const review = needsReview(t.status);
+            const label = statusLabel(t);
+            return (
+              <div
+                key={t.id}
+                className={`flex flex-wrap items-center gap-3 px-4 py-3 sm:flex-nowrap ${
+                  isInternal ? "opacity-60" : ""
+                }`}
+              >
+                {/* category icon */}
+                <span
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cream text-lg"
+                  aria-hidden
+                >
+                  {categoryIcon(t)}
+                </span>
+
+                {/* merchant + meta */}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{cleanMerchant(t)}</p>
+                  <p className="truncate text-xs text-ink-soft">
+                    {t.date}
+                    {t.accountId && accountLabel.get(t.accountId)
+                      ? ` · ${accountLabel.get(t.accountId)}`
+                      : ""}
+                    {t.category ? ` · ${t.category}` : ""}
+                  </p>
+                </div>
+
+                {/* amount + status/actions */}
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <span
+                    className={`font-semibold tabular-nums ${
+                      isInternal
+                        ? "text-ink-soft/60"
+                        : t.direction === "inflow"
                           ? "text-green-700"
                           : ""
-                      }`}
-                    >
-                      {t.direction === "outflow" ? "−" : "+"}${t.amount}
-                    </td>
-                    <td className="px-4 py-3">{t.category ?? "—"}</td>
-                    <td className="px-4 py-3">
-                      {isInternal ? "nets to zero" : (t.businessPersonal ?? "—")}
-                    </td>
-                    <td className="px-4 py-3">
-                      {needsReview ? (
-                        <ReviewButtons transactionId={t.id} />
-                      ) : (
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                            STATUS_STYLES[t.status ?? "pending"] ?? ""
-                          }`}
-                        >
-                          {t.status}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    }`}
+                  >
+                    {t.direction === "outflow" ? "−" : "+"}${t.amount}
+                  </span>
+                  {review ? (
+                    <ReviewButtons transactionId={t.id} />
+                  ) : (
+                    <span className={`text-xs ${TONE_CLASSES[label.tone]}`}>
+                      {label.text}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </main>
+  );
+}
+
+function EmptyState({
+  emoji,
+  title,
+  body,
+  cta,
+}: {
+  emoji: string;
+  title: string;
+  body: string;
+  cta?: { href: string; label: string };
+}) {
+  return (
+    <div className="rounded-xl border border-dashed border-ink/25 bg-white/40 px-6 py-14 text-center">
+      <p className="mb-3 text-3xl" aria-hidden>
+        {emoji}
+      </p>
+      <p className="mb-2 text-lg font-semibold">{title}</p>
+      <p className="mx-auto mb-6 max-w-md text-sm text-ink-soft">{body}</p>
+      {cta && (
+        <Link
+          href={cta.href}
+          className="inline-block rounded-lg bg-coral px-6 py-3 font-semibold text-white transition hover:bg-coral-dark"
+        >
+          {cta.label}
+        </Link>
+      )}
+    </div>
   );
 }
