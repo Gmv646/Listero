@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { ClerkProvider } from "@clerk/nextjs";
 import { TrpcProvider } from "@/components/TrpcProvider";
+import { SiteHeader } from "@/components/SiteHeader";
 import "./globals.css";
 
 const geistSans = localFont({
@@ -29,7 +30,10 @@ export default function RootLayout({
     >
       <html lang="en">
         <body className={`${geistSans.variable} font-sans antialiased bg-cream text-ink min-h-screen`}>
-          <TrpcProvider>{children}</TrpcProvider>
+          <TrpcProvider>
+            <SiteHeader />
+            {children}
+          </TrpcProvider>
         </body>
       </html>
     </ClerkProvider>

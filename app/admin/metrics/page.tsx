@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { getOrCreateUser } from "@/lib/user";
-import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -88,11 +87,8 @@ export default async function AdminMetricsPage() {
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-10">
-      <header className="mb-8 flex items-center justify-between">
+      <header className="mb-8">
         <h1 className="text-2xl font-bold">Product metrics</h1>
-        <Link href="/dashboard" className="text-sm font-semibold text-coral">
-          ← Dashboard
-        </Link>
       </header>
       <p className="mb-8 text-sm text-ink-soft">
         Anonymized aggregates across all users. Counts and rates only.

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db, bankConnections } from "@/db";
@@ -17,11 +16,8 @@ export default async function SettingsPage() {
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-10">
-      <header className="mb-10 flex items-center justify-between">
+      <header className="mb-10">
         <h1 className="text-2xl font-bold">Settings</h1>
-        <Link href="/dashboard" className="text-sm font-semibold text-coral">
-          ← Dashboard
-        </Link>
       </header>
 
       <section className="mb-10">
