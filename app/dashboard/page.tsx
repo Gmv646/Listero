@@ -65,28 +65,45 @@ export default async function DashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {txns.map((t) => (
-                <tr key={t.id} className="border-b border-ink/5 last:border-0">
-                  <td className="px-4 py-3 whitespace-nowrap">{t.date}</td>
-                  <td className="px-4 py-3">
-                    {t.merchantDisplay ?? t.merchantRaw ?? "—"}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    {t.direction === "outflow" ? "−" : "+"}${t.amount}
-                  </td>
-                  <td className="px-4 py-3">{t.category ?? "—"}</td>
-                  <td className="px-4 py-3">{t.businessPersonal ?? "—"}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        STATUS_STYLES[t.status ?? "pending"] ?? ""
+              {txns.map((t) => {
+                const isInternal = t.businessPersonal === "internal";
+                return (
+                  <tr
+                    key={t.id}
+                    className={`border-b border-ink/5 last:border-0 ${
+                      isInternal ? "text-ink-soft/70" : ""
+                    }`}
+                  >
+                    <td className="px-4 py-3 whitespace-nowrap">{t.date}</td>
+                    <td className="px-4 py-3">
+                      {isInternal ? "🔁 " : ""}
+                      {t.merchantDisplay ?? t.merchantRaw ?? "—"}
+                    </td>
+                    <td
+                      className={`px-4 py-3 whitespace-nowrap ${
+                        !isInternal && t.direction === "inflow"
+                          ? "text-green-700"
+                          : ""
                       }`}
                     >
-                      {t.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+                      {t.direction === "outflow" ? "−" : "+"}${t.amount}
+                    </td>
+                    <td className="px-4 py-3">{t.category ?? "—"}</td>
+                    <td className="px-4 py-3">
+                      {isInternal ? "nets to zero" : (t.businessPersonal ?? "—")}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                          STATUS_STYLES[t.status ?? "pending"] ?? ""
+                        }`}
+                      >
+                        {t.status}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

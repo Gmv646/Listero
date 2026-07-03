@@ -136,9 +136,11 @@ async function confirmTransaction(
   });
 
   const label =
-    choice.businessPersonal === "personal"
-      ? "Personal"
-      : `Business · ${choice.category ?? "Uncategorized"}`;
+    choice.businessPersonal === "internal"
+      ? "Internal transfer · nets to zero"
+      : choice.businessPersonal === "personal"
+        ? "Personal"
+        : `Business · ${choice.category ?? "Uncategorized"}`;
   await updateTransactionMessage(
     owner,
     { ...tx, ...{ category: choice.category, businessPersonal: choice.businessPersonal } },
@@ -207,6 +209,13 @@ async function handleBlockActions(payload: BlockActionsPayload) {
                   {
                     text: { type: "plain_text" as const, text: "Personal" },
                     value: "personal",
+                  },
+                  {
+                    text: {
+                      type: "plain_text" as const,
+                      text: "Internal transfer (not real spend)",
+                    },
+                    value: "internal",
                   },
                 ],
               },

@@ -20,6 +20,8 @@ export const CATEGORIES = [
   "Phone & internet",
   "Client gifts",
   "Income",
+  "Refund",
+  "Internal transfer",
   "Personal",
   "Other",
 ] as const;
@@ -48,6 +50,8 @@ export const SHORT_HINTS: Record<string, string> = {
   "Phone & internet": "deductible by business-use percentage",
   "Client gifts": "capped at $25 per recipient per year",
   Income: "counts toward gross business income",
+  Refund: "offsets the original purchase",
+  "Internal transfer": "nets to zero — not spend or income",
   Personal: "not a business expense",
   Other: "may be deductible if ordinary and necessary",
 };
@@ -87,6 +91,10 @@ export const TAX_EXPLANATIONS: Record<string, string> = {
     "Business gifts are deductible only up to $25 per recipient per year — the classic gotcha. A $100 client gift yields a $25 deduction.",
   Income:
     "Money coming in. Deposits from clients count toward gross business income even before fees are taken out.",
+  Refund:
+    "A refund reverses an earlier purchase rather than being new income. If the original purchase was a business deduction, the refund reduces that deduction by the same amount.",
+  "Internal transfer":
+    "Moving money between your own accounts — or paying your own credit card bill — is neither income nor an expense. The tax-relevant spending already happened on the individual card purchases; counting the payment too would double-count it.",
   Personal:
     "Not a business expense — it won't appear in your business deductions. Keeping personal spending cleanly separated is what keeps your books audit-ready.",
   Other:

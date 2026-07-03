@@ -39,18 +39,18 @@ export function buildTransactionBlocks(
   ];
 
   if (tx.category) {
-    const bp =
-      tx.businessPersonal === "personal" ? "Personal" : tx.category;
     const hint = SHORT_HINTS[tx.category] ?? "";
+    let line: string;
+    if (tx.businessPersonal === "internal") {
+      line = `🔁 *Internal transfer* — nets to zero (not spend or income)`;
+    } else if (tx.businessPersonal === "personal") {
+      line = `🏠 *Personal* — ${hint || "not a business expense"}`;
+    } else {
+      line = `💼 *${tx.category}*${hint ? ` — ${hint}` : ""}`;
+    }
     blocks.push({
       type: "section",
-      text: {
-        type: "mrkdwn",
-        text:
-          tx.businessPersonal === "personal"
-            ? `🏠 *Personal* — ${hint || "not a business expense"}`
-            : `💼 *${bp}*${hint ? ` — ${hint}` : ""}`,
-      },
+      text: { type: "mrkdwn", text: line },
     });
   }
 

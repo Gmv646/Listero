@@ -5,11 +5,34 @@
 type SeedRule = {
   pattern: string;
   category: string;
-  businessPersonal: "business" | "personal";
+  businessPersonal: "business" | "personal" | "internal";
   confidence: number;
 };
 
+// Generic transfer/card-payment descriptions used across US banks. These
+// classify as internal transfers (net to zero) for every user. Patterns are
+// case-insensitive substrings — keep them distinctly transfer-shaped to
+// avoid false positives on real merchant names.
+const TRANSFER_RULES: SeedRule[] = [
+  { pattern: "payment thank you", category: "Internal transfer", businessPersonal: "internal", confidence: 0.95 },
+  { pattern: "payment - thank you", category: "Internal transfer", businessPersonal: "internal", confidence: 0.95 },
+  { pattern: "autopay", category: "Internal transfer", businessPersonal: "internal", confidence: 0.9 },
+  { pattern: "auto pay", category: "Internal transfer", businessPersonal: "internal", confidence: 0.9 },
+  { pattern: "auto-pay", category: "Internal transfer", businessPersonal: "internal", confidence: 0.9 },
+  { pattern: "e-payment", category: "Internal transfer", businessPersonal: "internal", confidence: 0.9 },
+  { pattern: "epayment", category: "Internal transfer", businessPersonal: "internal", confidence: 0.9 },
+  { pattern: "online transfer", category: "Internal transfer", businessPersonal: "internal", confidence: 0.95 },
+  { pattern: "internal transfer", category: "Internal transfer", businessPersonal: "internal", confidence: 0.95 },
+  { pattern: "transfer sec:web", category: "Internal transfer", businessPersonal: "internal", confidence: 0.9 },
+  { pattern: "crcardpmt", category: "Internal transfer", businessPersonal: "internal", confidence: 0.95 },
+  { pattern: "card pymt", category: "Internal transfer", businessPersonal: "internal", confidence: 0.9 },
+  { pattern: "cardmember serv", category: "Internal transfer", businessPersonal: "internal", confidence: 0.9 },
+  // Lower confidence → passed to the AI as a hint rather than auto-applied
+  { pattern: "online payment", category: "Internal transfer", businessPersonal: "internal", confidence: 0.75 },
+];
+
 export const GLOBAL_RULES: SeedRule[] = [
+  ...TRANSFER_RULES,
   // Software & services common to all creative businesses
   { pattern: "adobe", category: "Software & subscriptions", businessPersonal: "business", confidence: 0.9 },
   { pattern: "canva", category: "Software & subscriptions", businessPersonal: "business", confidence: 0.9 },
