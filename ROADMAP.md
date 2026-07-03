@@ -6,7 +6,7 @@ Full details live in the founder's planning doc; this file tracks status.
 
 - [x] P1: internal transfer detection (pair match + Plaid PFC + global patterns)
 - [x] P1: incoming credits always classified (transfer → refund → revenue proposal)
-- [ ] P5: product_analytics telemetry + /admin/metrics
+- [x] P5: product_analytics telemetry + /admin/metrics
 - [ ] P2a: Clerk production instance + user-deleted webhook
 - [ ] P2b: onboarding edge cases (no-Slack web review fallback, resume, empty states)
 - [ ] P2c: documented multi-tenant isolation audit
