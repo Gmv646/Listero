@@ -5,6 +5,7 @@ import { getBankProvider } from "@/lib/bank-provider";
 import { markConnectionLost, syncConnection } from "@/lib/bank-provider/sync";
 import { onNewTransactions } from "@/lib/pipeline";
 import { slackClientFor } from "@/lib/slack/messages";
+import { track } from "@/lib/analytics";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -67,6 +68,14 @@ export async function POST(req: Request) {
       }
     }
     return NextResponse.json({ ok: true });
+  }
+
+  if (conn.userId) {
+    await track({
+      userId: conn.userId,
+      eventType: "plaid_webhook_received",
+      metadata: { kind: event.kind },
+    });
   }
 
   const { insertedTxIds } = await syncConnection(conn.id);

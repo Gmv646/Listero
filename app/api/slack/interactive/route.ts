@@ -10,6 +10,7 @@ import {
   type User,
 } from "@/db";
 import { verifySlackSignature } from "@/lib/slack/verify";
+import { track } from "@/lib/analytics";
 import {
   slackClientFor,
   updateTransactionMessage,
@@ -98,7 +99,8 @@ async function loadAuthorized(
 async function confirmTransaction(
   tx: Transaction,
   owner: User,
-  choice: { category: string | null; businessPersonal: string }
+  choice: { category: string | null; businessPersonal: string },
+  actionId: string
 ): Promise<void> {
   const before = {
     category: tx.category,
@@ -135,6 +137,15 @@ async function confirmTransaction(
     source: "slack",
   });
 
+  await track({
+    userId: owner.id,
+    transactionId: tx.id,
+    eventType: "user_action_taken",
+    action: actionId,
+    matchedProposal: !overrode,
+    metadata: { fromCategory: tx.category, toCategory: choice.category },
+  });
+
   const label =
     choice.businessPersonal === "internal"
       ? "Internal transfer · nets to zero"
@@ -156,17 +167,21 @@ async function handleBlockActions(payload: BlockActionsPayload) {
 
   switch (action.action_id) {
     case "confirm_business":
-      await confirmTransaction(tx, owner, {
-        category: tx.category ?? "Other",
-        businessPersonal: "business",
-      });
+      await confirmTransaction(
+        tx,
+        owner,
+        { category: tx.category ?? "Other", businessPersonal: "business" },
+        "confirm_business"
+      );
       break;
 
     case "confirm_personal":
-      await confirmTransaction(tx, owner, {
-        category: "Personal",
-        businessPersonal: "personal",
-      });
+      await confirmTransaction(
+        tx,
+        owner,
+        { category: "Personal", businessPersonal: "personal" },
+        "confirm_personal"
+      );
       break;
 
     case "wrong_category": {
@@ -286,7 +301,12 @@ async function handleViewSubmission(payload: ViewSubmissionPayload) {
     const category = values.category?.value?.selected_option?.value ?? null;
     const businessPersonal =
       values.business_personal?.value?.selected_option?.value ?? "business";
-    await confirmTransaction(tx, owner, { category, businessPersonal });
+    await confirmTransaction(
+      tx,
+      owner,
+      { category, businessPersonal },
+      "wrong_category"
+    );
   }
 
   if (payload.view.callback_id === "feedback_modal") {

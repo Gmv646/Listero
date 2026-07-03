@@ -22,6 +22,20 @@
       "when": 1783025698267,
       "tag": "0002_plaid-provider",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783043858807,
+      "tag": "0003_product-analytics",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1783043859420,
+      "tag": "0004_analytics-rls",
+      "breakpoints": true
     }
   ]
 }

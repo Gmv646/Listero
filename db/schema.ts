@@ -112,6 +112,27 @@ export const auditLog = pgTable("audit_log", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
+export const productAnalytics = pgTable("product_analytics", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+  transactionId: uuid("transaction_id").references(() => transactions.id, {
+    onDelete: "set null",
+  }),
+  // 'plaid_webhook_received' | 'categorization_completed' | 'slack_dm_sent'
+  // | 'user_action_taken'
+  eventType: text("event_type").notNull(),
+  // categorization: which layer resolved it (pair_match, plaid_signal, rule,
+  // refund_heuristic, inflow_default, claude) and the model when AI was used
+  method: text("method"),
+  model: text("model"),
+  confidence: numeric("confidence"),
+  // user actions: which button/modal, and whether it matched the AI proposal
+  action: text("action"),
+  matchedProposal: boolean("matched_proposal"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
 export const productFeedback = pgTable("product_feedback", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),

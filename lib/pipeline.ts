@@ -10,6 +10,7 @@ import {
   INTERNAL_CATEGORY,
 } from "@/lib/categorization/transfers";
 import { sendTransactionMessage } from "@/lib/slack/messages";
+import { track } from "@/lib/analytics";
 
 export interface PipelineOptions {
   // false when backfilling/reprocessing: no Slack DMs
@@ -72,6 +73,13 @@ async function processTransaction(
       pair.id,
       `Matched as the other leg of a transfer between your own accounts (${tx.date}). Nets to zero.`
     );
+    await track({
+      userId: user.id,
+      transactionId: tx.id,
+      eventType: "categorization_completed",
+      method: "pair_match",
+      confidence: 0.9,
+    });
     await maybeNotify(user, tx.id, opts.notify);
     return;
   }
@@ -85,6 +93,13 @@ async function processTransaction(
         ? "Your bank's transaction data marks this as a credit-card payment. Paying your own card isn't spend — the individual card purchases are what count."
         : "Your bank's transaction data marks this as a transfer between accounts. Transfers net to zero — neither spend nor income."
     );
+    await track({
+      userId: user.id,
+      transactionId: tx.id,
+      eventType: "categorization_completed",
+      method: "plaid_signal",
+      confidence: 0.9,
+    });
     await maybeNotify(user, tx.id, opts.notify);
     return;
   }
@@ -98,6 +113,13 @@ async function processTransaction(
         tx.id,
         `Auto-categorized: ${ruleSourceDescription(match)}. Transfers net to zero — neither spend nor income.`
       );
+      await track({
+        userId: user.id,
+        transactionId: tx.id,
+        eventType: "categorization_completed",
+        method: "rule",
+        confidence: match.confidence,
+      });
       await maybeNotify(user, tx.id, opts.notify);
       return;
     }
@@ -127,6 +149,13 @@ async function processTransaction(
         })
         .where(eq(transactions.id, tx.id));
     }
+    await track({
+      userId: user.id,
+      transactionId: tx.id,
+      eventType: "categorization_completed",
+      method: refundOrigin ? "refund_heuristic" : "inflow_default",
+      confidence: refundOrigin ? 0.7 : 0.6,
+    });
     await maybeNotify(user, tx.id, opts.notify);
     return;
   }
@@ -146,19 +175,34 @@ async function processTransaction(
         status: "auto",
       })
       .where(eq(transactions.id, tx.id));
+    await track({
+      userId: user.id,
+      transactionId: tx.id,
+      eventType: "categorization_completed",
+      method: "rule",
+      confidence: match.confidence,
+    });
   } else if (opts.allowClaude) {
-    const proposal = await proposeCategorization(user, tx, hints);
-    if (proposal) {
+    const result = await proposeCategorization(user, tx, hints);
+    if (result) {
       await db
         .update(transactions)
         .set({
-          category: proposal.category,
-          businessPersonal: proposal.business_personal,
-          confidence: String(proposal.confidence),
-          reasoning: proposal.reasoning,
+          category: result.proposal.category,
+          businessPersonal: result.proposal.business_personal,
+          confidence: String(result.proposal.confidence),
+          reasoning: result.proposal.reasoning,
           // still 'pending' — AI proposes, user disposes
         })
         .where(eq(transactions.id, tx.id));
+      await track({
+        userId: user.id,
+        transactionId: tx.id,
+        eventType: "categorization_completed",
+        method: "claude",
+        model: result.model,
+        confidence: result.proposal.confidence,
+      });
     }
   } else {
     return; // reprocess mode: leave non-transfer outflows untouched
@@ -175,5 +219,14 @@ async function maybeNotify(user: User, txId: string, notify: boolean) {
   const fresh = await db.query.transactions.findFirst({
     where: eq(transactions.id, txId),
   });
-  if (fresh) await sendTransactionMessage(user, fresh);
+  if (fresh) {
+    const sent = await sendTransactionMessage(user, fresh);
+    if (sent) {
+      await track({
+        userId: user.id,
+        transactionId: txId,
+        eventType: "slack_dm_sent",
+      });
+    }
+  }
 }

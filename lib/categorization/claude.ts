@@ -88,19 +88,20 @@ export async function proposeCategorization(
   user: User,
   tx: Transaction,
   hints: Rule[]
-): Promise<Proposal | null> {
+): Promise<{ proposal: Proposal; model: string } | null> {
   const prompt = buildPrompt(user, tx, hints);
   const useHardModel = Number(tx.amount) > HARD_AMOUNT_THRESHOLD;
 
   if (useHardModel) {
     try {
       const result = await callModel(HARD_MODEL, prompt);
-      if (result) return result;
+      if (result) return { proposal: result, model: HARD_MODEL };
     } catch (err) {
       console.warn("hard-model categorization failed, degrading to routine", {
         error: err instanceof Error ? err.message : String(err),
       });
     }
   }
-  return callModel(ROUTINE_MODEL, prompt);
+  const proposal = await callModel(ROUTINE_MODEL, prompt);
+  return proposal ? { proposal, model: ROUTINE_MODEL } : null;
 }
