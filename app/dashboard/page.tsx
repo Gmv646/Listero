@@ -1,9 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { desc, eq } from "drizzle-orm";
 import { db, transactions } from "@/db";
 import { getOrCreateUser } from "@/lib/user";
-import { UserButton } from "@clerk/nextjs";
 
 export const dynamic = "force-dynamic";
 
@@ -28,19 +26,11 @@ export default async function DashboardPage() {
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-10">
-      <header className="mb-10 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">
-            {user.businessName ?? "Your business"}
-          </h1>
-          <p className="text-sm text-ink-soft">Recent transactions</p>
-        </div>
-        <nav className="flex items-center gap-4">
-          <Link href="/settings" className="text-sm font-semibold text-coral">
-            Settings
-          </Link>
-          <UserButton />
-        </nav>
+      <header className="mb-10">
+        <h1 className="text-2xl font-bold">
+          {user.businessName ?? "Your business"}
+        </h1>
+        <p className="text-sm text-ink-soft">Recent transactions</p>
       </header>
 
       {txns.length === 0 ? (
