@@ -5,6 +5,16 @@ import { db, transactions, bankConnections, bankAccounts, users } from "@/db";
 import { cleanMerchant } from "@/lib/display";
 import { parseCsvStatement } from "@/lib/bank-provider/CsvProvider";
 import { txLocation } from "@/lib/enrich";
+import { rules } from "@/db";
+import { ruleMatches } from "@/lib/categorization/rules";
+import {
+  applyRuleRetroactively,
+  countAffected,
+  normalizePattern,
+  resetAutoForPattern,
+  upsertPersonalRule,
+} from "@/lib/vendor-rules";
+import { CATEGORIES } from "@/lib/categories";
 import { encryptSecret } from "@/lib/crypto";
 import { getBankProvider } from "@/lib/bank-provider";
 import { syncConnection } from "@/lib/bank-provider/sync";
@@ -141,6 +151,122 @@ export const appRouter = router({
         accountCount: accounts.length,
         transactionCount: insertedTxIds.length,
       };
+    }),
+
+  // ── Vendor rules (personal layer only — one system, two entry points) ──
+  vendorList: protectedProcedure.query(async ({ ctx }) => {
+    const txs = await db.query.transactions.findMany({
+      where: eqOp(transactions.userId, ctx.user.id),
+      limit: 2000,
+    });
+    const byVendor = new Map<string, { display: string; count: number }>();
+    for (const t of txs) {
+      const display = cleanMerchant(t);
+      const key = display.toLowerCase();
+      if (key === "unknown merchant") continue;
+      const cur = byVendor.get(key);
+      if (cur) cur.count++;
+      else byVendor.set(key, { display, count: 1 });
+    }
+    return Array.from(byVendor.values()).sort((a, b) => b.count - a.count);
+  }),
+
+  vendorRulesList: protectedProcedure.query(async ({ ctx }) => {
+    const personal = (
+      await db.query.rules.findMany({
+        where: eqOp(rules.userId, ctx.user.id),
+      })
+    ).filter((r) => r.layer === "personal");
+    const txs = await db.query.transactions.findMany({
+      where: eqOp(transactions.userId, ctx.user.id),
+      limit: 2000,
+    });
+    return personal.map((r) => ({
+      id: r.id,
+      merchantPattern: r.merchantPattern,
+      category: r.category,
+      businessPersonal: r.businessPersonal,
+      affectedCount: txs.filter((t) => ruleMatches(r, t)).length,
+    }));
+  }),
+
+  createVendorRule: protectedProcedure
+    .input(
+      z.object({
+        vendor: z.string().min(2).max(80),
+        businessPersonal: z.enum(["business", "personal"]),
+        category: z.enum(CATEGORIES),
+        reclassifyExisting: z.boolean().default(true),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const pattern = normalizePattern(input.vendor);
+      const rule = await upsertPersonalRule(
+        ctx.user.id,
+        pattern,
+        input.category,
+        input.businessPersonal
+      );
+      const reclassified = input.reclassifyExisting
+        ? await applyRuleRetroactively(ctx.user.id, rule)
+        : 0;
+      return { ruleId: rule.id, reclassified };
+    }),
+
+  updateVendorRule: protectedProcedure
+    .input(
+      z.object({
+        ruleId: z.string().uuid(),
+        businessPersonal: z.enum(["business", "personal"]),
+        category: z.enum(CATEGORIES),
+        reclassifyExisting: z.boolean(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const rule = await db.query.rules.findFirst({
+        where: and(
+          eqOp(rules.id, input.ruleId),
+          eqOp(rules.userId, ctx.user.id)
+        ),
+      });
+      if (!rule) throw new TRPCError({ code: "NOT_FOUND" });
+      await db
+        .update(rules)
+        .set({
+          category: input.category,
+          businessPersonal: input.businessPersonal,
+        })
+        .where(eqOp(rules.id, rule.id));
+      const reclassified = input.reclassifyExisting
+        ? await applyRuleRetroactively(ctx.user.id, {
+            merchantPattern: rule.merchantPattern,
+            category: input.category,
+            businessPersonal: input.businessPersonal,
+          })
+        : 0;
+      return { reclassified };
+    }),
+
+  deleteVendorRule: protectedProcedure
+    .input(
+      z.object({
+        ruleId: z.string().uuid(),
+        resetAffected: z.boolean(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const rule = await db.query.rules.findFirst({
+        where: and(
+          eqOp(rules.id, input.ruleId),
+          eqOp(rules.userId, ctx.user.id)
+        ),
+      });
+      if (!rule) throw new TRPCError({ code: "NOT_FOUND" });
+      await db.delete(rules).where(eqOp(rules.id, rule.id));
+      const reset = input.resetAffected
+        ? await resetAutoForPattern(ctx.user.id, rule.merchantPattern)
+        : 0;
+      return { reset };
     }),
 
   // Mid-year signup: how should pre-signup history be handled?

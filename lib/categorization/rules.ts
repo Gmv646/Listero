@@ -1,5 +1,6 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { db, rules, type Rule, type Transaction, type User } from "@/db";
+import { cleanMerchant } from "@/lib/display";
 
 // Rules matching: personal → industry → global, first high-confidence match
 // wins. A rule matches when its merchant_pattern appears (case-insensitive)
@@ -14,9 +15,15 @@ export interface RulesResult {
   hints: Rule[];
 }
 
-function ruleMatches(rule: Rule, tx: Transaction): boolean {
+export function ruleMatches(
+  rule: Pick<Rule, "merchantPattern">,
+  tx: Transaction
+): boolean {
   const pattern = rule.merchantPattern.toLowerCase();
-  const haystacks = [tx.merchantRaw, tx.merchantDisplay]
+  // Match against raw bank string, display name, AND the cleaned display
+  // name — personal rules created from the UI or learned offers use cleaned
+  // names ("amex payment"), which never appear verbatim in raw strings.
+  const haystacks = [tx.merchantRaw, tx.merchantDisplay, cleanMerchant(tx)]
     .filter(Boolean)
     .map((s) => (s as string).toLowerCase());
   return haystacks.some((h) => h.includes(pattern));

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db, bankAccounts, bankConnections } from "@/db";
@@ -127,6 +128,21 @@ export default async function SettingsPage() {
             <CsvImport />
           </div>
         </details>
+      </section>
+
+      <section className="mb-10">
+        <h2 className="mb-3 text-lg font-semibold">Vendor rules</h2>
+        <p className="mb-3 text-sm text-ink-soft">
+          Vendors Listero auto-handles for you — always-personal (Robinhood,
+          groceries) or always-business (Adobe, Frame.io). Includes rules
+          Listero offered after learning your patterns.
+        </p>
+        <Link
+          href="/settings/vendor-rules"
+          className="inline-block rounded-lg border border-ink/20 px-4 py-2 text-sm font-semibold transition hover:border-ink/50"
+        >
+          Manage vendor rules →
+        </Link>
       </section>
 
       <section className="mb-10">

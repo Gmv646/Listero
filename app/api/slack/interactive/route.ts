@@ -3,13 +3,16 @@ import { and, eq } from "drizzle-orm";
 import {
   db,
   productFeedback,
-  rules,
   transactions,
   users,
   type Transaction,
   type User,
 } from "@/db";
 import { track } from "@/lib/analytics";
+import {
+  applyRuleRetroactively,
+  upsertPersonalRule,
+} from "@/lib/vendor-rules";
 import { verifySlackSignature } from "@/lib/slack/verify";
 import { applyUserConfirmation } from "@/lib/confirm";
 import { slackClientFor } from "@/lib/slack/messages";
@@ -264,14 +267,10 @@ async function handleRuleOffer(
 
   const accepted = action.action_id === "rule_accept";
   if (accepted) {
-    await db.insert(rules).values({
-      userId: owner.id,
-      layer: "personal",
-      merchantPattern: offer.m,
-      category: offer.c,
-      businessPersonal: offer.b,
-      confidence: "0.95",
-    });
+    // Same personal-rule object the Vendor Rules page manages —
+    // one system, two entry points
+    const rule = await upsertPersonalRule(owner.id, offer.m, offer.c, offer.b);
+    await applyRuleRetroactively(owner.id, rule);
   }
   await track({
     userId: owner.id,
