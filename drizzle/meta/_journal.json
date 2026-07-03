@@ -43,6 +43,13 @@
       "when": 1783044717561,
       "tag": "0005_rls-hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783087581496,
+      "tag": "0006_csv-history-fields",
+      "breakpoints": true
     }
   ]
 }

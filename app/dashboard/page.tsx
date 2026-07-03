@@ -21,6 +21,9 @@ export default async function DashboardPage() {
   if (!user.onboardingComplete && connections.length === 0) {
     redirect("/onboarding/connect-bank");
   }
+  if (!user.onboardingComplete && !user.historyMode) {
+    redirect("/onboarding/history");
+  }
   if (!user.onboardingComplete && !user.slackTeamId) {
     redirect("/onboarding/slack");
   }
@@ -32,12 +35,12 @@ export default async function DashboardPage() {
   const monthStart = new Date();
   monthStart.setDate(1);
   const monthStartStr = monthStart.toISOString().slice(0, 10);
-  const thisMonth = txns.filter((t) => t.date >= monthStartStr);
+  const thisMonth = txns.filter((t) => t.date >= monthStartStr && !t.archived);
 
   const isInternal = (t: (typeof txns)[number]) =>
     t.businessPersonal === "internal";
   const needsReview = txns.filter(
-    (t) => t.status === "pending" && !isInternal(t)
+    (t) => t.status === "pending" && !isInternal(t) && !t.archived
   );
   const transfersHandled = thisMonth.filter(isInternal).length;
   const autoHandled = thisMonth.filter(

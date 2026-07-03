@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
-import { db, bankConnections } from "@/db";
+import { db, bankAccounts, bankConnections } from "@/db";
+import { AccountTreatmentSelect } from "@/components/AccountTreatmentSelect";
+import { CsvImport } from "@/components/CsvImport";
 import { getOrCreateUser } from "@/lib/user";
 import { ConnectBankButton } from "@/components/ConnectBankButton";
 
@@ -10,9 +12,14 @@ export default async function SettingsPage() {
   const user = await getOrCreateUser();
   if (!user) redirect("/login");
 
-  const connections = await db.query.bankConnections.findMany({
-    where: eq(bankConnections.userId, user.id),
-  });
+  const [connections, accounts] = await Promise.all([
+    db.query.bankConnections.findMany({
+      where: eq(bankConnections.userId, user.id),
+    }),
+    db.query.bankAccounts.findMany({
+      where: eq(bankAccounts.userId, user.id),
+    }),
+  ]);
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-10">
@@ -44,23 +51,65 @@ export default async function SettingsPage() {
           <p className="mb-3 text-sm text-ink-soft">No bank connected yet.</p>
         ) : (
           <ul className="mb-3 space-y-2">
-            {connections.map((c) => (
-              <li
-                key={c.id}
-                className="flex items-center justify-between rounded-lg border border-ink/10 bg-white p-4 text-sm"
-              >
-                <span>{c.institutionName ?? "Bank"}</span>
-                <span
-                  className={
-                    c.status === "active" ? "text-green-700" : "text-red-600"
-                  }
+            {connections.map((c) => {
+              const accts = accounts.filter((a) => a.connectionId === c.id);
+              return (
+                <li
+                  key={c.id}
+                  className="rounded-lg border border-ink/10 bg-white p-4 text-sm"
                 >
-                  {c.status}
-                </span>
-              </li>
-            ))}
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">
+                      {c.institutionName ?? "Bank"}
+                      {c.connectionType === "csv" && (
+                        <span className="ml-2 rounded-full bg-ink/5 px-2 py-0.5 text-xs text-ink-soft">
+                          CSV · upload monthly, no live pings
+                        </span>
+                      )}
+                    </span>
+                    <span
+                      className={
+                        c.status === "active"
+                          ? "text-green-700"
+                          : "text-red-600"
+                      }
+                    >
+                      {c.status}
+                    </span>
+                  </div>
+                  {accts.length > 0 && (
+                    <ul className="mt-3 space-y-2 border-t border-ink/5 pt-3">
+                      {accts.map((a) => (
+                        <li
+                          key={a.id}
+                          className="flex items-center justify-between gap-2"
+                        >
+                          <span className="truncate text-ink-soft">
+                            {a.accountName ?? "Account"}
+                            {a.lastFour ? ` ··${a.lastFour}` : ""}
+                          </span>
+                          <AccountTreatmentSelect
+                            accountId={a.id}
+                            current={
+                              (a.businessTreatment ?? "mixed") as
+                                | "business"
+                                | "personal"
+                                | "mixed"
+                            }
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
+        <p className="mb-3 text-xs text-ink-soft">
+          Mark each account business / personal / mixed — dedicated business
+          cards help Listero categorize with more confidence.
+        </p>
         <ConnectBankButton
           label={
             connections.length === 0 ? "Connect a bank" : "Connect another bank"
@@ -70,6 +119,14 @@ export default async function SettingsPage() {
           Connect every institution you spend from — checking, credit cards,
           business accounts. Listero watches them all.
         </p>
+        <details className="mt-4 rounded-lg border border-ink/10 bg-white/60">
+          <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-ink-soft transition hover:text-ink">
+            Card not on Plaid (Apple Card) or prefer not to link? Import a CSV
+          </summary>
+          <div className="border-t border-ink/5 p-4">
+            <CsvImport />
+          </div>
+        </details>
       </section>
 
       <section className="mb-10">

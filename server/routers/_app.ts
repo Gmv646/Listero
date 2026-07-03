@@ -3,6 +3,7 @@ import { asc, desc, eq, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db, transactions, bankConnections, bankAccounts, users } from "@/db";
 import { cleanMerchant } from "@/lib/display";
+import { parseCsvStatement } from "@/lib/bank-provider/CsvProvider";
 import { encryptSecret } from "@/lib/crypto";
 import { getBankProvider } from "@/lib/bank-provider";
 import { syncConnection } from "@/lib/bank-provider/sync";
@@ -141,6 +142,166 @@ export const appRouter = router({
       };
     }),
 
+  // Mid-year signup: how should pre-signup history be handled?
+  setHistoryMode: protectedProcedure
+    .input(z.object({ mode: z.enum(["catch_up", "start_fresh", "self"]) }))
+    .mutation(async ({ ctx, input }) => {
+      await db
+        .update(users)
+        .set({ historyMode: input.mode })
+        .where(eqOp(users.id, ctx.user.id));
+
+      if (input.mode !== "catch_up") {
+        // Archive everything before today that the user hasn't confirmed.
+        // Archived rows stay visible in History and in exports, and can be
+        // un-archived by confirming them there — nothing is deleted.
+        const today = new Date().toISOString().slice(0, 10);
+        const { ne, lt } = await import("drizzle-orm");
+        await db
+          .update(transactions)
+          .set({ archived: true })
+          .where(
+            and(
+              eqOp(transactions.userId, ctx.user.id),
+              ne(transactions.status, "confirmed"),
+              lt(transactions.date, today)
+            )
+          );
+      }
+      return { ok: true };
+    }),
+
+  // Classify an account: dedicated business/personal card or checking.
+  // Feeds the categorization engine's leaning, source-agnostic.
+  setAccountTreatment: protectedProcedure
+    .input(
+      z.object({
+        accountId: z.string().uuid(),
+        businessTreatment: z.enum(["business", "personal", "mixed"]),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await db
+        .update(bankAccounts)
+        .set({ businessTreatment: input.businessTreatment })
+        .where(
+          and(
+            eqOp(bankAccounts.id, input.accountId),
+            eqOp(bankAccounts.userId, ctx.user.id)
+          )
+        );
+      return { ok: true };
+    }),
+
+  // CSV import — first-class connection method for cards Plaid can't
+  // reach (Apple Card) or users who prefer not to link. Batch, not live.
+  importCsv: protectedProcedure
+    .input(
+      z.object({
+        institutionName: z.string().min(1).max(100),
+        lastFour: z.string().max(4).optional(),
+        businessTreatment: z.enum(["business", "personal", "mixed"]),
+        accountType: z.enum(["card", "checking"]),
+        csvText: z.string().min(1).max(2_000_000),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const parsed = parseCsvStatement(input.csvText);
+      if (parsed.format === "unrecognized" || parsed.format === "empty") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "Couldn't read that file. Export a CSV with Date, Description, and Amount columns and try again.",
+        });
+      }
+
+      // One CSV connection+account per institution+last4, reused on
+      // subsequent monthly uploads.
+      const enrollmentId = `csv-${ctx.user.id}-${input.institutionName.toLowerCase().replace(/\W+/g, "-")}${input.lastFour ? `-${input.lastFour}` : ""}`;
+      let conn = await db.query.bankConnections.findFirst({
+        where: and(
+          eqOp(bankConnections.userId, ctx.user.id),
+          eqOp(bankConnections.externalEnrollmentId, enrollmentId)
+        ),
+      });
+      if (!conn) {
+        [conn] = await db
+          .insert(bankConnections)
+          .values({
+            userId: ctx.user.id,
+            provider: "csv",
+            connectionType: "csv",
+            externalEnrollmentId: enrollmentId,
+            accessTokenEncrypted: "csv-no-token",
+            institutionName: input.institutionName,
+          })
+          .returning();
+      }
+      let account = await db.query.bankAccounts.findFirst({
+        where: and(
+          eqOp(bankAccounts.connectionId, conn.id),
+          eqOp(bankAccounts.externalAccountId, enrollmentId)
+        ),
+      });
+      if (!account) {
+        [account] = await db
+          .insert(bankAccounts)
+          .values({
+            userId: ctx.user.id,
+            connectionId: conn.id,
+            externalAccountId: enrollmentId,
+            accountName: `${input.institutionName} (CSV)`,
+            accountType: input.accountType,
+            lastFour: input.lastFour ?? null,
+            businessTreatment: input.businessTreatment,
+          })
+          .returning();
+      }
+
+      // Dedupe on the stable row hash; insert only new transactions
+      let inserted = 0;
+      const insertedIds: string[] = [];
+      for (const row of parsed.rows) {
+        const [r] = await db
+          .insert(transactions)
+          .values({
+            userId: ctx.user.id,
+            accountId: account.id,
+            externalTxId: row.externalTxId,
+            date: row.date,
+            merchantRaw: row.merchantRaw,
+            merchantDisplay: row.merchantRaw,
+            amount: row.amount,
+            direction: row.direction,
+            status: "pending",
+          })
+          .onConflictDoNothing()
+          .returning({ id: transactions.id });
+        if (r) {
+          inserted++;
+          insertedIds.push(r.id);
+        }
+      }
+
+      // Deterministic classification only (rules/transfers/inflows) — the
+      // client then drives Claude in bounded batches via the backlog job.
+      // Batch uploads never ping Slack.
+      if (insertedIds.length > 0) {
+        await onNewTransactions(ctx.user.id, insertedIds, {
+          notify: false,
+          allowClaude: false,
+        });
+      }
+
+      return {
+        format: parsed.format,
+        parsed: parsed.rows.length,
+        inserted,
+        duplicates: parsed.rows.length - inserted,
+        skippedRows: parsed.skipped,
+      };
+    }),
+
   // One-at-a-time review queue: everything awaiting the user's eyes,
   // oldest first, with display-ready merchant + account labels.
   reviewQueue: protectedProcedure.query(async ({ ctx }) => {
@@ -150,7 +311,8 @@ export const appRouter = router({
         // is deliberately kept out of the review flow per product design.
         where: and(
           eqOp(transactions.userId, ctx.user.id),
-          eqOp(transactions.status, "pending")
+          eqOp(transactions.status, "pending"),
+          eqOp(transactions.archived, false)
         ),
         orderBy: [asc(transactions.date), asc(transactions.createdAt)],
         limit: 100,

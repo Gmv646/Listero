@@ -31,6 +31,9 @@ export async function applyUserConfirmation(
       businessPersonal: choice.businessPersonal,
       status: "confirmed",
       confirmedAt: new Date(),
+      // Confirming an archived history transaction brings it back into
+      // the books — "revisitable anytime"
+      archived: false,
     })
     .where(eq(transactions.id, tx.id));
 

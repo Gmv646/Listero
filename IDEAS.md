@@ -12,3 +12,7 @@ Out-of-scope observations parked here per the build spec.
 - Dashboard: allow confirming/re-categorizing transactions from the web UI,
   not just Slack.
 - CSV export alongside JSON (accountants prefer CSV).
+- **Email-forwarding transaction capture** (forward bank alert emails to an
+  ingest address as a live-ish feed for non-Plaid cards): deliberately NOT
+  built — fragile and inconsistent across banks. Revisit only if CSV-import
+  friction proves to be a churn driver.

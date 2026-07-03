@@ -1,5 +1,12 @@
 import { eq } from "drizzle-orm";
-import { db, transactions, users, type Transaction, type User } from "@/db";
+import {
+  db,
+  bankAccounts,
+  transactions,
+  users,
+  type Transaction,
+  type User,
+} from "@/db";
 import { matchRules, ruleSourceDescription } from "@/lib/categorization/rules";
 import { proposeCategorization } from "@/lib/categorization/claude";
 import {
@@ -59,6 +66,20 @@ async function processTransaction(
   if (!tx || tx.status === "confirmed") return;
   // Already resolved as a transfer (e.g. the partner leg processed first)
   if (tx.category === INTERNAL_CATEGORY) return;
+
+  // Account classification feeds the AI's leaning ("dedicated business card")
+  const account = tx.accountId
+    ? await db.query.bankAccounts.findFirst({
+        where: eq(bankAccounts.id, tx.accountId),
+      })
+    : null;
+  const accountContext = account
+    ? `${account.accountName ?? "account"}${
+        account.businessTreatment && account.businessTreatment !== "mixed"
+          ? ` — the user says this is a dedicated ${account.businessTreatment} ${account.accountType === "card" || account.accountSubtype === "credit card" ? "card" : "account"}`
+          : ""
+      }`
+    : undefined;
 
   // 1. Cross-account pair
   const pair = await findTransferPair(tx);
@@ -183,7 +204,7 @@ async function processTransaction(
       confidence: match.confidence,
     });
   } else if (opts.allowClaude) {
-    const result = await proposeCategorization(user, tx, hints);
+    const result = await proposeCategorization(user, tx, hints, accountContext);
     if (result) {
       await db
         .update(transactions)

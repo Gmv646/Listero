@@ -30,7 +30,12 @@ const ProposalSchema = z.object({
 
 export type Proposal = z.infer<typeof ProposalSchema>;
 
-function buildPrompt(user: User, tx: Transaction, hints: Rule[]): string {
+function buildPrompt(
+  user: User,
+  tx: Transaction,
+  hints: Rule[],
+  accountContext?: string
+): string {
   const hintText =
     hints.length > 0
       ? `\nLower-confidence rule hints (not authoritative):\n${hints
@@ -54,6 +59,7 @@ Transaction:
 - Merchant (cleaned): ${tx.merchantDisplay ?? "unknown"}
 - Amount: $${tx.amount} ${tx.currency} (${tx.direction})
 - Date: ${tx.date}
+${accountContext ? `- Account: ${accountContext}` : ""}
 ${hintText}
 
 Guidelines:
@@ -87,9 +93,10 @@ async function callModel(
 export async function proposeCategorization(
   user: User,
   tx: Transaction,
-  hints: Rule[]
+  hints: Rule[],
+  accountContext?: string
 ): Promise<{ proposal: Proposal; model: string } | null> {
-  const prompt = buildPrompt(user, tx, hints);
+  const prompt = buildPrompt(user, tx, hints, accountContext);
   const useHardModel = Number(tx.amount) > HARD_AMOUNT_THRESHOLD;
 
   if (useHardModel) {

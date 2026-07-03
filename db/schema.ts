@@ -18,6 +18,9 @@ export const users = pgTable("users", {
   businessIndustry: text("business_industry"),
   businessLocation: text("business_location"),
   accountingMethod: text("accounting_method").default("cash"),
+  // 'catch_up' | 'start_fresh' | 'self' — how the user chose to handle
+  // pre-signup transaction history
+  historyMode: text("history_mode"),
   slackTeamId: text("slack_team_id"),
   slackBotTokenEncrypted: text("slack_bot_token_encrypted"),
   slackUserId: text("slack_user_id"),
@@ -29,6 +32,8 @@ export const bankConnections = pgTable("bank_connections", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
   provider: text("provider").default("plaid"),
+  // 'live' (Plaid, real-time webhooks) | 'csv' (manual statement uploads)
+  connectionType: text("connection_type").default("live"),
   // Plaid item_id (was Teller enrollment_id; column name kept provider-neutral)
   externalEnrollmentId: text("external_enrollment_id").notNull(),
   accessTokenEncrypted: text("access_token_encrypted").notNull(),
@@ -51,6 +56,8 @@ export const bankAccounts = pgTable("bank_accounts", {
   accountType: text("account_type"),
   accountSubtype: text("account_subtype"),
   lastFour: text("last_four"),
+  // 'business' | 'personal' | 'mixed' — feeds categorization leaning
+  businessTreatment: text("business_treatment").default("mixed"),
   status: text("status").default("active"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
@@ -75,6 +82,8 @@ export const transactions = pgTable(
     status: text("status").default("pending"),
     confidence: numeric("confidence"),
     reasoning: text("reasoning"),
+    // true = pre-signup history the user chose not to actively manage
+    archived: boolean("archived").default(false),
     slackMessageTs: text("slack_message_ts"),
     slackChannelId: text("slack_channel_id"),
     rawData: jsonb("raw_data"),

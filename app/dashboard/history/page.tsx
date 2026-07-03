@@ -155,6 +155,7 @@ export default async function HistoryPage({
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{cleanMerchant(t)}</p>
                   <p className="truncate text-xs text-ink-soft">
+                    {t.archived ? "archived · " : ""}
                     {t.date}
                     {t.accountId && accountLabel.get(t.accountId)
                       ? ` · ${accountLabel.get(t.accountId)}`
