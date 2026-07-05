@@ -20,7 +20,7 @@ export default function PrivacyPage() {
       <P>
         Listero (&quot;Listero&quot;, &quot;we&quot;, &quot;us&quot;) is an
         AI-assisted bookkeeping tool for solo creative businesses, operated by
-        Grant Viola. This policy explains what data we collect, how we use it,
+        Viola Visuals LLC. This policy explains what data we collect, how we use it,
         who we share it with, and the choices you have. The short version:
         we collect your transaction data to categorize it for you, we never
         sell your data, and you can export or delete everything at any time.

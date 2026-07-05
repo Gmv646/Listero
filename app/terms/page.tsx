@@ -19,7 +19,7 @@ export default function TermsPage() {
 
       <P>
         These terms are an agreement between you and Listero, operated by
-        Grant Viola (&quot;Listero&quot;, &quot;we&quot;, &quot;us&quot;). By
+        Viola Visuals LLC (&quot;Listero&quot;, &quot;we&quot;, &quot;us&quot;). By
         creating an account or using Listero you agree to them. If you
         don&apos;t agree, don&apos;t use the service.
       </P>
