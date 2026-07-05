@@ -3,6 +3,12 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db, bankConnections, transactions } from "@/db";
 import { getOrCreateUser } from "@/lib/user";
+import { CountUp } from "@/components/CountUp";
+
+// Conservative effective rate for the tax-savings estimate. Deliberately
+// low; the disclaimer + explainer make clear this is directional, not a
+// filing figure. User-configurable rate is a planned settings option.
+const CONSERVATIVE_TAX_RATE = 0.25;
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +65,54 @@ export default async function DashboardPage() {
     )
     .reduce((sum, t) => sum + Number(t.amount), 0);
 
+  // YTD confirmed deductions → celebratory savings estimate
+  const yearStart = `${new Date().getFullYear()}-01-01`;
+  const ytd = txns.filter((t) => t.date >= yearStart && !t.archived);
+  const ytdDeductions =
+    ytd
+      .filter(
+        (t) =>
+          t.direction === "outflow" &&
+          t.businessPersonal === "business" &&
+          (t.status === "confirmed" || t.status === "auto")
+      )
+      .reduce((s, t) => s + Number(t.amount), 0) -
+    ytd
+      .filter(
+        (t) =>
+          t.direction === "inflow" &&
+          t.category === "Refund" &&
+          t.businessPersonal === "business"
+      )
+      .reduce((s, t) => s + Number(t.amount), 0);
+  const taxSaved = Math.max(0, Math.round(ytdDeductions * CONSERVATIVE_TAX_RATE));
+
+  // Heartbeat: newest successful sync across live connections
+  const liveConns = connections.filter((c) => c.connectionType !== "csv");
+  const lastSynced = connections
+    .map((c) => c.lastSyncedAt)
+    .filter((d): d is Date => Boolean(d))
+    .sort((a, b) => b.getTime() - a.getTime())[0];
+  const hoursSinceSync = lastSynced
+    ? (Date.now() - lastSynced.getTime()) / 3_600_000
+    : null;
+  const syncStale = liveConns.length > 0 && (hoursSinceSync ?? 0) > 72;
+  const relativeSync =
+    hoursSinceSync == null
+      ? null
+      : hoursSinceSync < 1
+        ? "just now"
+        : hoursSinceSync < 24
+          ? `${Math.round(hoursSinceSync)}h ago`
+          : `${Math.round(hoursSinceSync / 24)}d ago`;
+  const accountCount = new Set(
+    txns.map((t) => t.accountId).filter(Boolean)
+  ).size;
+
+  const brokenConn = connections.find(
+    (c) => c.connectionType !== "csv" && c.status !== "active"
+  );
+
   const statusLine = [
     "You're on track this month",
     deductionsFound > 0
@@ -81,6 +135,19 @@ export default async function DashboardPage() {
         </h1>
         <p className="mt-2 text-ink-soft">{statusLine}</p>
       </header>
+
+      {brokenConn && (
+        <Link
+          href="/settings"
+          className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 transition hover:bg-red-100"
+        >
+          <span>
+            ⚠️ Your {brokenConn.institutionName ?? "bank"} connection needs a
+            quick reconnect — new purchases aren&apos;t coming through.
+          </span>
+          <span className="font-semibold">Reconnect →</span>
+        </Link>
+      )}
 
       {!slackConnected && (
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-coral/40 bg-coral/5 px-4 py-3 text-sm">
@@ -139,6 +206,37 @@ export default async function DashboardPage() {
         </div>
       )}
 
+      {/* Tax-savings moment — celebratory, conservative, disclaimed */}
+      {taxSaved > 0 && (
+        <div className="anim-rise mt-6 rounded-2xl border border-ink/10 bg-white p-6 text-center">
+          <p className="text-sm font-semibold uppercase tracking-widest text-coral">
+            Estimated tax savings this year
+          </p>
+          <p className="mt-2 text-4xl font-black tabular-nums sm:text-5xl">
+            <CountUp value={taxSaved} prefix="~$" /> 🎉
+          </p>
+          <p className="mt-2 text-sm text-ink-soft">
+            from ${Math.round(ytdDeductions).toLocaleString("en-US")} in
+            business deductions you&apos;ve confirmed — and counting.
+          </p>
+          <details className="mt-3 text-xs text-ink-soft">
+            <summary className="cursor-pointer select-none underline underline-offset-4">
+              How is this calculated?
+            </summary>
+            <p className="mx-auto mt-2 max-w-sm">
+              Your confirmed + auto-handled business deductions this year
+              (minus business refunds), multiplied by a deliberately
+              conservative {Math.round(CONSERVATIVE_TAX_RATE * 100)}% effective
+              rate. Your real rate depends on your income, entity type, and
+              state.
+            </p>
+          </details>
+          <p className="mt-2 text-xs font-medium text-ink-soft">
+            Estimate only. Not tax advice. Consult your accountant.
+          </p>
+        </div>
+      )}
+
       {/* Auto-handled fold — collapsed by default, ignorable by design */}
       {(transfersHandled > 0 || autoHandled > 0 || confirmedThisMonth > 0) && (
         <details className="mt-6 rounded-xl border border-ink/10 bg-white/60">
@@ -177,6 +275,19 @@ export default async function DashboardPage() {
           All transactions
         </Link>
       </p>
+
+      {/* Heartbeat — passive "still working" confidence */}
+      {connections.length > 0 && (
+        <p
+          className={`mt-6 text-center text-xs ${
+            syncStale ? "text-amber-700" : "text-ink-soft/70"
+          }`}
+        >
+          {syncStale
+            ? `⏸ Haven't heard from your bank since ${relativeSync} — this usually resolves on its own; if it persists, try reconnecting in Settings.`
+            : `${relativeSync ? `Last synced ${relativeSync} · ` : ""}watching ${accountCount || connections.length} account${(accountCount || connections.length) === 1 ? "" : "s"}`}
+        </p>
+      )}
     </main>
   );
 }

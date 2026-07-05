@@ -1,7 +1,7 @@
 import { WebClient } from "@slack/web-api";
 import type { KnownBlock } from "@slack/web-api";
 import { eq } from "drizzle-orm";
-import { db, transactions, type Transaction, type User } from "@/db";
+import { db, transactions, users, type Transaction, type User } from "@/db";
 import { decryptSecret } from "@/lib/crypto";
 import { SHORT_HINTS } from "@/lib/categories";
 import { txLocation } from "@/lib/enrich";
@@ -125,6 +125,30 @@ export function buildTransactionBlocks(
 
 // DM the user about a transaction and record the message coordinates so
 // button clicks can rewrite it later.
+// Slack auth errors that mean the bot token is dead (app removed, token
+// revoked). We clear the stored token so the UI flips to "reconnect Slack"
+// — the user re-installs in one tap. Can't DM them about it; the token is
+// exactly the thing that's broken.
+const DEAD_TOKEN_ERRORS = new Set([
+  "token_revoked",
+  "invalid_auth",
+  "account_inactive",
+  "app_uninstalled",
+]);
+
+async function handleDeadToken(user: User, err: unknown): Promise<void> {
+  const code = (err as { data?: { error?: string } })?.data?.error;
+  if (!code || !DEAD_TOKEN_ERRORS.has(code)) return;
+  console.warn("slack token dead — clearing for reconnect", {
+    userId: user.id,
+    code,
+  });
+  await db
+    .update(users)
+    .set({ slackBotTokenEncrypted: null, slackTeamId: null, slackUserId: null })
+    .where(eq(users.id, user.id));
+}
+
 export async function sendTransactionMessage(
   user: User,
   tx: Transaction
@@ -132,7 +156,20 @@ export async function sendTransactionMessage(
   const client = slackClientFor(user);
   if (!client || !user.slackUserId) return false;
 
-  const dm = await client.conversations.open({ users: user.slackUserId });
+  try {
+    return await sendTransactionMessageInner(client, user, tx);
+  } catch (err) {
+    await handleDeadToken(user, err);
+    throw err;
+  }
+}
+
+async function sendTransactionMessageInner(
+  client: WebClient,
+  user: User,
+  tx: Transaction
+): Promise<boolean> {
+  const dm = await client.conversations.open({ users: user.slackUserId! });
   const channelId = dm.channel?.id;
   if (!channelId) return false;
 

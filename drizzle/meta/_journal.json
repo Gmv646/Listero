@@ -57,6 +57,13 @@
       "when": 1783090395808,
       "tag": "0007_user-note",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1783215517800,
+      "tag": "0008_last-synced",
+      "breakpoints": true
     }
   ]
 }

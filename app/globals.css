@@ -23,7 +23,26 @@ body {
   0%, 100% { transform: scale(0); opacity: 0; }
   50% { transform: scale(1); opacity: 1; }
 }
-.animate-listero-bounce { animation: listero-bounce 1.1s ease-in-out infinite; }
-.animate-listero-shadow { animation: listero-shadow 1.1s ease-in-out infinite; }
-.animate-listero-sparkle { animation: listero-sparkle 1.6s ease-in-out infinite; }
-.animate-listero-sparkle-late { animation: listero-sparkle 1.6s ease-in-out 0.8s infinite; }
+/* Emotional-beat animations only — "animate meaning, not motion".
+   Everything is gated on prefers-reduced-motion. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes listero-pop {
+    0% { opacity: 0; transform: scale(0.85); }
+    60% { transform: scale(1.05); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  @keyframes listero-rise {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .anim-pop { animation: listero-pop 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+  .anim-rise { animation: listero-rise 0.45s ease-out both; }
+  .anim-rise-late { animation: listero-rise 0.45s ease-out 0.15s both; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .animate-listero-bounce { animation: listero-bounce 1.1s ease-in-out infinite; }
+  .animate-listero-shadow { animation: listero-shadow 1.1s ease-in-out infinite; }
+  .animate-listero-sparkle { animation: listero-sparkle 1.6s ease-in-out infinite; }
+  .animate-listero-sparkle-late { animation: listero-sparkle 1.6s ease-in-out 0.8s infinite; }
+}

@@ -71,6 +71,22 @@ export class PlaidProvider implements BankProvider {
     return resp.data.link_token;
   }
 
+  // Update mode: re-auth an existing item (bank forced re-login, expired
+  // consent). Same Link UI, one tap, no new accounts created.
+  async createUpdateLinkToken(opts: {
+    internalUserId: string;
+    accessToken: string;
+  }): Promise<string> {
+    const resp = await this.client.linkTokenCreate({
+      user: { client_user_id: opts.internalUserId },
+      client_name: "Listero",
+      country_codes: [CountryCode.Us],
+      language: "en",
+      access_token: opts.accessToken,
+    });
+    return resp.data.link_token;
+  }
+
   async exchangePublicToken(publicToken: string) {
     const resp = await this.client.itemPublicTokenExchange({
       public_token: publicToken,

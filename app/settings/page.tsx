@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db, bankAccounts, bankConnections } from "@/db";
 import { AccountTreatmentSelect } from "@/components/AccountTreatmentSelect";
+import { ReconnectButton } from "@/components/ReconnectButton";
 import { CsvImport } from "@/components/CsvImport";
 import { getOrCreateUser } from "@/lib/user";
 import { ConnectBankButton } from "@/components/ConnectBankButton";
@@ -68,15 +69,16 @@ export default async function SettingsPage() {
                         </span>
                       )}
                     </span>
-                    <span
-                      className={
-                        c.status === "active"
-                          ? "text-green-700"
-                          : "text-red-600"
-                      }
-                    >
-                      {c.status}
-                    </span>
+                    {c.status === "active" ? (
+                      <span className="text-green-700">active</span>
+                    ) : c.connectionType === "csv" ? (
+                      <span className="text-ink-soft">{c.status}</span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <span className="text-red-600">needs reconnect</span>
+                        <ReconnectButton connectionId={c.id} />
+                      </span>
+                    )}
                   </div>
                   {accts.length > 0 && (
                     <ul className="mt-3 space-y-2 border-t border-ink/5 pt-3">

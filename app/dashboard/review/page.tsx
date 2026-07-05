@@ -58,11 +58,11 @@ export default function ReviewPage() {
   if (!current) {
     return (
       <main className="mx-auto max-w-xl px-6 py-16 text-center">
-        <p className="mb-3 text-5xl">🎉</p>
-        <h1 className="mb-2 text-2xl font-bold">
+        <p className="anim-pop mb-3 text-5xl">🎉</p>
+        <h1 className="anim-rise mb-2 text-2xl font-bold">
           {total > 0 ? "All clear!" : "Nothing to review"}
         </h1>
-        <p className="mb-8 text-ink-soft">
+        <p className="anim-rise-late mb-8 text-ink-soft">
           {total > 0
             ? `You reviewed ${done} transaction${done === 1 ? "" : "s"}. Your books are up to date.`
             : "New purchases will land here as they happen."}

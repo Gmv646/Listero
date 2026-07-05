@@ -410,6 +410,12 @@ export const appRouter = router({
         }
       }
 
+      // CSV uploads count as a successful "sync" for the heartbeat
+      await db
+        .update(bankConnections)
+        .set({ lastSyncedAt: new Date() })
+        .where(eqOp(bankConnections.id, conn.id));
+
       // Deterministic classification only (rules/transfers/inflows) — the
       // client then drives Claude in bounded batches via the backlog job.
       // Batch uploads never ping Slack.
@@ -523,6 +529,56 @@ export const appRouter = router({
       .where(eqOp(users.id, ctx.user.id));
     return { ok: true };
   }),
+
+  // One-tap reconnect for a broken live connection (Plaid update mode)
+  plaidCreateReconnectToken: protectedProcedure
+    .input(z.object({ connectionId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const conn = await db.query.bankConnections.findFirst({
+        where: and(
+          eqOp(bankConnections.id, input.connectionId),
+          eqOp(bankConnections.userId, ctx.user.id)
+        ),
+      });
+      if (!conn || conn.connectionType === "csv") {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      const provider = getBankProvider();
+      if (!provider.createUpdateLinkToken) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED" });
+      }
+      const { decryptSecret } = await import("@/lib/crypto");
+      const linkToken = await provider.createUpdateLinkToken({
+        internalUserId: ctx.user.id,
+        accessToken: decryptSecret(conn.accessTokenEncrypted),
+      });
+      return { linkToken };
+    }),
+
+  plaidReconnectComplete: protectedProcedure
+    .input(z.object({ connectionId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const conn = await db.query.bankConnections.findFirst({
+        where: and(
+          eqOp(bankConnections.id, input.connectionId),
+          eqOp(bankConnections.userId, ctx.user.id)
+        ),
+      });
+      if (!conn) throw new TRPCError({ code: "NOT_FOUND" });
+      await db
+        .update(bankConnections)
+        .set({ status: "active", disconnectedAt: null })
+        .where(eqOp(bankConnections.id, conn.id));
+      try {
+        const { insertedTxIds } = await syncConnection(conn.id);
+        if (insertedTxIds.length > 0) {
+          await onNewTransactions(ctx.user.id, insertedTxIds);
+        }
+      } catch {
+        // webhook will catch up
+      }
+      return { ok: true };
+    }),
 
   bankConnectionsList: protectedProcedure.query(async ({ ctx }) => {
     const rows = await db.query.bankConnections.findMany({

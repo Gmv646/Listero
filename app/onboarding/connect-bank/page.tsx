@@ -66,7 +66,7 @@ export default function ConnectBankPage() {
       </p>
 
       {result ? (
-        <div className="rounded-lg border border-green-300 bg-green-50 p-6">
+        <div className="anim-pop rounded-lg border border-green-300 bg-green-50 p-6">
           <p className="mb-2 font-semibold text-green-900">Bank connected ✓</p>
           <p className="mb-6 text-sm text-green-900">
             {result.accountCount} account{result.accountCount === 1 ? "" : "s"}{" "}

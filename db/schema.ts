@@ -41,6 +41,8 @@ export const bankConnections = pgTable("bank_connections", {
   // /transactions/sync cursor; null until first sync completes
   syncCursor: text("sync_cursor"),
   status: text("status").default("active"),
+  // heartbeat: last successful sync (webhook or manual), even with 0 new txs
+  lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
   connectedAt: timestamp("connected_at", { withTimezone: true }).defaultNow(),
   disconnectedAt: timestamp("disconnected_at", { withTimezone: true }),
 });

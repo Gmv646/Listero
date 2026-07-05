@@ -44,6 +44,11 @@ export interface BankProvider {
     internalUserId: string;
     webhookUrl: string;
   }): Promise<string>;
+  // Re-auth an existing connection (update mode); optional per provider
+  createUpdateLinkToken?(opts: {
+    internalUserId: string;
+    accessToken: string;
+  }): Promise<string>;
   exchangePublicToken(
     publicToken: string
   ): Promise<{ accessToken: string; itemId: string }>;

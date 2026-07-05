@@ -13,8 +13,16 @@ const INDUSTRIES = [
   { value: "other", label: "Something else" },
 ] as const;
 
+const PRIMER_STEPS = [
+  { emoji: "🏦", text: "Connect the accounts you spend from (read-only, encrypted)" },
+  { emoji: "👀", text: "Listero watches every new purchase automatically" },
+  { emoji: "💬", text: "You get a Slack ping with a proposed category and the why" },
+  { emoji: "✓", text: "Tap once to confirm — your books stay clean, tax-ready" },
+];
+
 export default function OnboardingPage() {
   const router = useRouter();
+  const [showPrimer, setShowPrimer] = useState(true);
   const [industry, setIndustry] = useState<string>("");
   const [location, setLocation] = useState("");
   const [entityName, setEntityName] = useState("");
@@ -27,6 +35,46 @@ export default function OnboardingPage() {
 
   const canSubmit =
     industry !== "" && location.trim() !== "" && entityName.trim() !== "";
+
+  // One-screen primer before anything else — sets expectations, skippable
+  if (showPrimer) {
+    return (
+      <main className="mx-auto max-w-xl px-6 py-16">
+        <h1 className="anim-rise mb-3 text-3xl font-bold">
+          Here&apos;s how Listero works
+        </h1>
+        <p className="anim-rise mb-8 text-ink-soft">
+          Two minutes of setup, then your books basically keep themselves.
+        </p>
+        <ol className="anim-rise-late mb-10 space-y-4">
+          {PRIMER_STEPS.map((s, i) => (
+            <li key={i} className="flex items-start gap-4 rounded-xl border border-ink/10 bg-white p-4">
+              <span className="text-2xl" aria-hidden>
+                {s.emoji}
+              </span>
+              <span className="pt-1 text-sm">{s.text}</span>
+            </li>
+          ))}
+        </ol>
+        <button
+          type="button"
+          onClick={() => setShowPrimer(false)}
+          className="w-full rounded-lg bg-coral px-6 py-3 font-semibold text-white transition hover:bg-coral-dark"
+        >
+          Let&apos;s set up →
+        </button>
+        <p className="mt-3 text-center">
+          <button
+            type="button"
+            onClick={() => setShowPrimer(false)}
+            className="text-sm text-ink-soft underline underline-offset-4"
+          >
+            Skip
+          </button>
+        </p>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-xl px-6 py-16">

@@ -75,14 +75,15 @@ export async function syncConnection(
 
   await db
     .update(bankConnections)
-    .set({ syncCursor: cursor })
+    .set({ syncCursor: cursor, lastSyncedAt: new Date() })
     .where(eq(bankConnections.id, conn.id));
 
   return { insertedTxIds };
 }
 
 // Returns the new transaction id when a genuinely new row was inserted.
-async function upsertTransaction(
+// Exported for the pending→posted lifecycle test.
+export async function upsertTransaction(
   userId: string,
   t: NormalizedTransaction,
   accountByExternalId: Map<string, { id: string }>
