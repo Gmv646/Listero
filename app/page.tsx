@@ -35,6 +35,15 @@ export default function LandingPage() {
         yours — export everything, anytime. Listero explains tax concepts for
         education; it is not tax advice.
       </p>
+      <p className="mt-3 text-xs text-ink-soft">
+        <Link href="/privacy" className="underline underline-offset-4 hover:text-ink">
+          Privacy Policy
+        </Link>
+        {" · "}
+        <Link href="/terms" className="underline underline-offset-4 hover:text-ink">
+          Terms of Service
+        </Link>
+      </p>
     </main>
   );
 }

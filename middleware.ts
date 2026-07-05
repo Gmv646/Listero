@@ -4,6 +4,8 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 // that authenticate via their own signature verification, not Clerk.
 const isPublicRoute = createRouteMatcher([
   "/",
+  "/privacy",
+  "/terms",
   "/signup(.*)",
   "/login(.*)",
   "/api/plaid/webhook",
