@@ -8,6 +8,9 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        serif: ["var(--font-serif)", "Georgia", "serif"],
+      },
       colors: {
         cream: "#FAF6EF",
         "cream-dark": "#F1EADF",

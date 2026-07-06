@@ -87,6 +87,13 @@ export const transactions = pgTable(
     // free-text context from the user (e.g. via Slack reply): "gear for the
     // Henderson wedding shoot"
     userNote: text("user_note"),
+    // Reasoning-partner outputs: workshopped deductibility position
+    deductiblePct: numeric("deductible_pct"),
+    cpaNarrative: text("cpa_narrative"),
+    positionConfidence: numeric("position_confidence"),
+    cpaReviewReason: text("cpa_review_reason"),
+    // Slack receipt attachment metadata {fileId, name, permalink, mimetype}
+    receiptMeta: jsonb("receipt_meta"),
     // true = pre-signup history the user chose not to actively manage
     archived: boolean("archived").default(false),
     slackMessageTs: text("slack_message_ts"),

@@ -168,12 +168,20 @@ export default async function SettingsPage() {
           Everything Listero knows about your business is yours. Download it
           all as JSON, anytime.
         </p>
-        <a
-          href="/api/export"
-          className="inline-block rounded-lg border border-ink/20 px-4 py-2 text-sm font-semibold transition hover:border-ink/50"
-        >
-          Export all my data
-        </a>
+        <span className="flex flex-wrap gap-3">
+          <a
+            href="/api/export"
+            className="inline-block rounded-lg border border-ink/20 px-4 py-2 text-sm font-semibold transition hover:border-ink/50"
+          >
+            Export all my data (JSON)
+          </a>
+          <a
+            href="/api/export/cpa"
+            className="inline-block rounded-lg border border-ink/20 px-4 py-2 text-sm font-semibold transition hover:border-ink/50"
+          >
+            CPA export (CSV) — sortable by confidence
+          </a>
+        </span>
       </section>
     </main>
   );

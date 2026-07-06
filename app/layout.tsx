@@ -1,5 +1,12 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { Instrument_Serif } from "next/font/google";
+
+const instrumentSerif = Instrument_Serif({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-serif",
+});
 import { ClerkProvider } from "@clerk/nextjs";
 import { TrpcProvider } from "@/components/TrpcProvider";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -29,7 +36,7 @@ export default function RootLayout({
       signUpUrl="/signup"
     >
       <html lang="en">
-        <body className={`${geistSans.variable} font-sans antialiased bg-cream text-ink min-h-screen`}>
+        <body className={`${geistSans.variable} ${instrumentSerif.variable} font-sans antialiased bg-cream text-ink min-h-screen`}>
           <TrpcProvider>
             <SiteHeader />
             {children}

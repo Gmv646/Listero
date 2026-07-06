@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
-import { db, bankConnections, transactions } from "@/db";
+import { and, eq, gte, inArray } from "drizzle-orm";
+import { db, auditLog, bankConnections, transactions } from "@/db";
 import { getOrCreateUser } from "@/lib/user";
 import { CountUp } from "@/components/CountUp";
 
@@ -105,13 +105,71 @@ export default async function DashboardPage() {
         : hoursSinceSync < 24
           ? `${Math.round(hoursSinceSync)}h ago`
           : `${Math.round(hoursSinceSync / 24)}d ago`;
-  const accountCount = new Set(
-    txns.map((t) => t.accountId).filter(Boolean)
-  ).size;
 
   const brokenConn = connections.find(
     (c) => c.connectionType !== "csv" && c.status !== "active"
   );
+
+  // Month strip numbers
+  const revenueIn = thisMonth
+    .filter(
+      (t) =>
+        t.direction === "inflow" &&
+        t.businessPersonal === "business" &&
+        t.category === "Income" &&
+        (t.status === "confirmed" || t.status === "auto")
+    )
+    .reduce((s, t) => s + Number(t.amount), 0);
+
+  // Streak: consecutive days (ending today/yesterday) with ≥1 confirmation.
+  // Celebrates progress; a lapse just resets quietly — never shamed.
+  const since = new Date();
+  since.setDate(since.getDate() - 45);
+  const confirmEvents = await db.query.auditLog.findMany({
+    where: and(
+      eq(auditLog.userId, user.id),
+      gte(auditLog.createdAt, since),
+      inArray(auditLog.action, ["user_confirm", "user_override"])
+    ),
+  });
+  const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+  const activeDays = new Set(
+    confirmEvents.map((e) => dayKey(e.createdAt ?? new Date()))
+  );
+  let streak = 0;
+  const cursor = new Date();
+  if (!activeDays.has(dayKey(cursor))) cursor.setDate(cursor.getDate() - 1);
+  while (activeDays.has(dayKey(cursor))) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  const categorizedThisMonth = confirmEvents.filter(
+    (e) => (e.createdAt ?? new Date()).toISOString().slice(0, 10) >= monthStartStr
+  ).length;
+
+  const connChip = (c: (typeof connections)[number]) => {
+    const hrs = c.lastSyncedAt
+      ? (Date.now() - c.lastSyncedAt.getTime()) / 3_600_000
+      : null;
+    const broken = c.connectionType !== "csv" && c.status !== "active";
+    const stale = !broken && c.connectionType !== "csv" && (hrs ?? 999) > 72;
+    return {
+      id: c.id,
+      label: c.institutionName ?? "Bank",
+      csv: c.connectionType === "csv",
+      dot: broken ? "bg-red-500" : stale ? "bg-amber-500" : "bg-green-600",
+      when:
+        c.connectionType === "csv"
+          ? "CSV"
+          : hrs == null
+            ? "—"
+            : hrs < 1
+              ? "now"
+              : hrs < 24
+                ? `${Math.round(hrs)}h`
+                : `${Math.round(hrs / 24)}d`,
+    };
+  };
 
   const statusLine = [
     "You're on track this month",
@@ -129,12 +187,60 @@ export default async function DashboardPage() {
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-12">
-      <header className="mb-8">
+      <header className="mb-6">
         <h1 className="text-2xl font-bold">
           {user.businessName ?? "Your business"}
         </h1>
         <p className="mt-2 text-ink-soft">{statusLine}</p>
       </header>
+
+      {/* HERO — the savings moment. Serif number, counts up, disclaimed. */}
+      {taxSaved > 0 && (
+        <div className="anim-rise mb-6 rounded-2xl border border-ink/10 bg-white px-6 py-8 text-center">
+          <p className="text-xs font-semibold uppercase tracking-widest text-coral">
+            You&apos;ve saved this year
+          </p>
+          <p className="mt-1 font-serif text-6xl tabular-nums sm:text-7xl">
+            <CountUp value={taxSaved} prefix="~$" />
+          </p>
+          <p className="mt-1 text-lg">🎉</p>
+          <p className="mt-2 text-sm text-ink-soft">
+            from ${Math.round(ytdDeductions).toLocaleString("en-US")} in
+            deductions you&apos;ve confirmed — and counting.
+          </p>
+          <details className="mt-3 text-xs text-ink-soft">
+            <summary className="cursor-pointer select-none underline underline-offset-4">
+              How is this calculated?
+            </summary>
+            <p className="mx-auto mt-2 max-w-sm">
+              Your confirmed + auto-handled business deductions this year
+              (minus business refunds), multiplied by a deliberately
+              conservative {Math.round(CONSERVATIVE_TAX_RATE * 100)}% effective
+              rate. Your real rate depends on your income, entity type, and
+              state.
+            </p>
+          </details>
+          <p className="mt-2 text-xs font-medium text-ink-soft">
+            Estimate only · not tax advice · consult your accountant
+          </p>
+        </div>
+      )}
+
+      {/* Quiet month strip */}
+      {connections.length > 0 && txns.length > 0 && (
+        <div className="mb-6 grid grid-cols-3 gap-3 text-center">
+          {[
+            ["Business spend", `$${Math.round(deductionsFound).toLocaleString("en-US")}`],
+            ["Revenue in", `$${Math.round(revenueIn).toLocaleString("en-US")}`],
+            ["Needs review", String(needsReview.length)],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-xl border border-ink/10 bg-white/60 px-2 py-3">
+              <p className="font-serif text-2xl tabular-nums">{value}</p>
+              <p className="mt-0.5 text-xs text-ink-soft">{label} · this month</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {brokenConn && (
         <Link
@@ -206,35 +312,13 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* Tax-savings moment — celebratory, conservative, disclaimed */}
-      {taxSaved > 0 && (
-        <div className="anim-rise mt-6 rounded-2xl border border-ink/10 bg-white p-6 text-center">
-          <p className="text-sm font-semibold uppercase tracking-widest text-coral">
-            Estimated tax savings this year
-          </p>
-          <p className="mt-2 text-4xl font-black tabular-nums sm:text-5xl">
-            <CountUp value={taxSaved} prefix="~$" /> 🎉
-          </p>
-          <p className="mt-2 text-sm text-ink-soft">
-            from ${Math.round(ytdDeductions).toLocaleString("en-US")} in
-            business deductions you&apos;ve confirmed — and counting.
-          </p>
-          <details className="mt-3 text-xs text-ink-soft">
-            <summary className="cursor-pointer select-none underline underline-offset-4">
-              How is this calculated?
-            </summary>
-            <p className="mx-auto mt-2 max-w-sm">
-              Your confirmed + auto-handled business deductions this year
-              (minus business refunds), multiplied by a deliberately
-              conservative {Math.round(CONSERVATIVE_TAX_RATE * 100)}% effective
-              rate. Your real rate depends on your income, entity type, and
-              state.
-            </p>
-          </details>
-          <p className="mt-2 text-xs font-medium text-ink-soft">
-            Estimate only. Not tax advice. Consult your accountant.
-          </p>
-        </div>
+      {/* Streak ribbon — celebration only, never shame */}
+      {(streak >= 2 || categorizedThisMonth >= 5) && (
+        <p className="anim-rise mt-6 rounded-full border border-ink/10 bg-white/70 px-4 py-2 text-center text-sm text-ink-soft">
+          {categorizedThisMonth > 0 &&
+            `${categorizedThisMonth} categorized this month!`}
+          {streak >= 2 && ` 🔥 ${streak}-day streak`}
+        </p>
       )}
 
       {/* Auto-handled fold — collapsed by default, ignorable by design */}
@@ -276,17 +360,29 @@ export default async function DashboardPage() {
         </Link>
       </p>
 
-      {/* Heartbeat — passive "still working" confidence */}
+      {/* Per-account chips doubling as the sync heartbeat */}
       {connections.length > 0 && (
-        <p
-          className={`mt-6 text-center text-xs ${
-            syncStale ? "text-amber-700" : "text-ink-soft/70"
-          }`}
-        >
-          {syncStale
-            ? `⏸ Haven't heard from your bank since ${relativeSync} — this usually resolves on its own; if it persists, try reconnecting in Settings.`
-            : `${relativeSync ? `Last synced ${relativeSync} · ` : ""}watching ${accountCount || connections.length} account${(accountCount || connections.length) === 1 ? "" : "s"}`}
-        </p>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+          {connections.map((c) => {
+            const chip = connChip(c);
+            return (
+              <Link
+                key={chip.id}
+                href="/settings"
+                className="flex items-center gap-1.5 rounded-full border border-ink/10 bg-white/70 px-3 py-1 text-xs text-ink-soft transition hover:border-ink/30"
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${chip.dot}`} />
+                {chip.label}
+                <span className="text-ink-soft/60">{chip.when}</span>
+              </Link>
+            );
+          })}
+          <span className="w-full text-center text-xs text-ink-soft/60 sm:w-auto">
+            {syncStale
+              ? `⏸ quiet since ${relativeSync} — usually resolves itself`
+              : `last synced ${relativeSync ?? "—"}`}
+          </span>
+        </div>
       )}
     </main>
   );
